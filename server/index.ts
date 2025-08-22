@@ -307,7 +307,7 @@ app.use((req, res, next) => {
   } else {
     // Serve static files directly without importing from vite.ts
     import("fs").then(fs => {
-      const distPath = path.resolve(import.meta.dirname, "public");
+      const distPath = path.resolve(__dirname, "public");
       if (fs.existsSync(distPath)) {
         app.use(express.static(distPath));
         app.use("*", (_req, res) => {
