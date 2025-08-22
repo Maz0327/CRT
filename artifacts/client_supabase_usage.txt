@@ -1,0 +1,4 @@
+client/src/lib/supabaseClient.ts:1:import { createClient } from '@supabase/supabase-js';
+client/src/lib/supabaseClient.ts:6:export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+client/src/integrations/supabase/client.ts:2:import { createClient } from '@supabase/supabase-js';
+client/src/integrations/supabase/client.ts:9:export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

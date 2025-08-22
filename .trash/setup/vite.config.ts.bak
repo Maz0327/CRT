@@ -1,0 +1,74 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: { alias: { "@": path.resolve(__dirname, "client/src") } },
+  server: {
+    host: true,
+    port: 5175,
+    strictPort: false,
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true
+        // no rewrite: backend exposes /api/* in dev & prod
+      }
+    }
+  },
+  build: { chunkSizeWarningLimit: 800 }
+});
+TS
+[ -s vite.config.ts ] || { echo "❌ Failed to write vite.config.ts"; exit 1; }
+echo "✅ vite.config.ts written"
+
+echo "== STEP 3: Add shared health mount (exposes /healthz and /api/healthz) =="
+cat > server/health.ts <<\"TS\"
+import type { Express } from "express";
+
+export default function mountHealth(app: Express) {
+  const health = (_req: any, res: any) =>
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      environment: process.env.NODE_ENV || "development"
+    });
+
+  app.get("/healthz", health);
+  app.get("/api/healthz", health);
+}
+TS
+[ -s server/health.ts ] || { echo "❌ Failed to write server/health.ts"; exit 1; }
+echo "✅ server/health.ts written"
+
+echo "== STEP 4: Add prod-only static serving from client/dist =="
+cat > server/prod-frontend.ts <<\"TS\"
+import type { Express, Request, Response } from "express";
+import express from "express";
+import path from "path";
+import fs from "fs";
+
+export default function mountProdFrontend(app: Express) {
+  const distDir = path.resolve(process.cwd(), "client", "dist");
+  const indexHtml = path.join(distDir, "index.html");
+
+  if (fs.existsSync(indexHtml)) {
+    app.use(express.static(distDir));
+    app.get("*", (_req: Request, res: Response) => res.sendFile(indexHtml));
+  } else {
+    app.get("*", (_req: Request, res: Response) => {
+      res.status(200).type("text/plain").send(
+        "Frontend build not found. Run `npm run build` to generate client/dist."
+      );
+    });
+  }
+}
+TS
+[ -s server/prod-frontend.ts ] || { echo "❌ Failed to write server/prod-frontend.ts"; exit 1; }
+echo "✅ server/prod-frontend.ts written"
+
+echo "== STEP 5: Patch server/index.ts to import + mount health & prod frontend =="
+# Insert imports at top if missing
+grep -q "mountHealth" server/index.ts || sed -i \1i

@@ -1,0 +1,2 @@
+client/src/ui-v2/brief-canvas/CanvasHost.tsx:3:import { useParams } from 'react-router-dom';
+client/src/ui-v2/app/routes.tsx:1:import { RouteObject } from 'react-router-dom';

@@ -11,7 +11,9 @@
     "build",
     "dist",
     "**/*.test.ts",
-    "client/src/_legacy/**/*"
+    "client/src/_legacy/**/*",
+    "client/src/__tests__",
+    "**/*.test.tsx"
   ],
   "compilerOptions": {
     "target": "ES2018",
