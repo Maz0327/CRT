@@ -1,0 +1,43 @@
+@import "./ui-v2/styles/tokens.css";
+@import "./ui-v2/index.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Shadcn token bridge (NO visual changes, just variables) */
+:root {
+  --background: 240 6% 6%;
+  --foreground: 0 0% 98%;
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 220 90% 56%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4.8% 16%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4.8% 16%;
+  --muted-foreground: 240 5% 64%;
+  --accent: 240 4.8% 16%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5% 20%;
+  --input: 240 5% 16%;
+  --ring: 220 90% 56%;
+  --radius: 0.75rem;
+}
+
+/* Optional dark alias; keep same for dark-first apps */
+.dark {}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}

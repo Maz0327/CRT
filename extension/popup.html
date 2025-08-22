@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Content Radar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">Content Radar</div>
+    <button id="btn-settings" title="Settings">⚙️</button>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="upload" class="active">Upload</button>
+    <button data-tab="truth">Truth Lab</button>
+    <button data-tab="visual">Visual Check</button>
+    <button data-tab="recent">Recent</button>
+  </nav>
+
+  <main>
+    <!-- Upload -->
+    <section id="tab-upload" class="tab active">
+      <div class="row">
+        <label>Project</label>
+        <select id="projectSelect"><option value="">— None —</option></select>
+      </div>
+      <div class="row">
+        <label>Files</label>
+        <input id="fileInput" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.txt"/>
+      </div>
+      <div class="row">
+        <label>Notes</label>
+        <textarea id="notesInput" placeholder="Optional context"></textarea>
+      </div>
+      <button id="btnUpload">Upload</button>
+      <div id="uploadStatus" class="status"></div>
+    </section>
+
+    <!-- Truth Lab -->
+    <section id="tab-truth" class="tab">
+      <div class="row">
+        <label>Type</label>
+        <select id="truthType">
+          <option value="url">URL</option>
+          <option value="text">Text</option>
+          <option value="image">Image</option>
+        </select>
+      </div>
+      <div class="row" data-for="url">
+        <label>URL</label>
+        <input id="truthUrl" type="url" placeholder="https://…"/>
+      </div>
+      <div class="row" data-for="text" style="display:none">
+        <label>Text</label>
+        <textarea id="truthText" placeholder="Paste text to analyze"></textarea>
+      </div>
+      <div class="row" data-for="image" style="display:none">
+        <label>Image</label>
+        <input id="truthImage" type="file" accept=".png,.jpg,.jpeg,.webp"/>
+      </div>
+      <button id="btnTruthRun">Analyze</button>
+      <div id="truthResult" class="result"></div>
+    </section>
+
+    <!-- Visual Check -->
+    <section id="tab-visual" class="tab">
+      <div class="row">
+        <label>Image</label>
+        <input id="visualImage" type="file" accept=".png,.jpg,.jpeg,.webp"/>
+      </div>
+      <button id="btnVisualRun">Analyze</button>
+      <div id="visualResult" class="result"></div>
+    </section>
+
+    <!-- Recent -->
+    <section id="tab-recent" class="tab">
+      <div id="recentList" class="list"></div>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <h3>Settings</h3>
+    <div class="row">
+      <label>API Base</label>
+      <input id="apiBase" placeholder="https://YOUR-APP/api" />
+      <div class="hint">Defaults to your current app origin if empty.</div>
+    </div>
+    <div class="row">
+      <label>Access Token</label>
+      <input id="accessToken" placeholder="Paste your Bearer token" />
+      <div class="hint">From your web app (account menu → "Copy API token").</div>
+    </div>
+    <div class="row">
+      <button id="btnSaveSettings">Save</button>
+      <button id="btnCloseSettings">Close</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

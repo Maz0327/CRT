@@ -1,0 +1,4 @@
+.cr-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;
+}
+.cr-mask { position: absolute; border: 2px dashed rgba(255,255,255,0.8); backdrop-filter: blur(1px); }

@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Content Radar Settings</title>
+  <style>
+    body { font: 14px system-ui; margin: 20px; background: #f8f9fa; }
+    .section { background: white; border-radius: 8px; margin-bottom: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    input, select { width: 100%; max-width: 400px; padding: 8px; margin-top: 4px; border: 1px solid #ddd; border-radius: 4px; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .status { margin-top: 8px; padding: 8px; border-radius: 4px; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <h1>Content Radar Extension Settings</h1>
+  
+  <div class="section">
+    <h3>API Configuration</h3>
+    <label>API Base URL:</label>
+    <input id="apiBase" placeholder="/api (relative) or https://your-domain.com/api" />
+    <small>Default: /api (same origin). Use full URL for cross-origin.</small>
+  </div>
+
+  <div class="section">
+    <h3>Capture Preferences</h3>
+    <label>Default recording duration (seconds, 0 = manual stop):</label>
+    <input id="recordingDuration" type="number" value="0" min="0" max="300" />
+    
+    <label>Auto-analysis for screenshots:</label>
+    <select id="autoAnalysis">
+      <option value="true">Enabled</option>
+      <option value="false">Disabled</option>
+    </select>
+
+    <label>Default project ID:</label>
+    <input id="defaultProjectId" placeholder="Leave empty for no default" />
+  </div>
+
+  <div class="section">
+    <h3>Advanced</h3>
+    <label>Queue processing interval (minutes):</label>
+    <input id="queueInterval" type="number" value="0.5" min="0.1" max="60" step="0.1" />
+    
+    <label>Chunk size for uploads (MB):</label>
+    <input id="chunkSize" type="number" value="5" min="1" max="50" />
+  </div>
+
+  <div class="section">
+    <button id="save">Save Settings</button>
+    <button id="reset">Reset to Defaults</button>
+    <div id="status"></div>
+  </div>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    
+    // Load current settings
+    async function loadSettings() {
+      const settings = await chrome.storage.sync.get({
+        apiBase: "/api",
+        recordingDuration: 0,
+        autoAnalysis: true,
+        defaultProjectId: "",
+        queueInterval: 0.5,
+        chunkSize: 5
+      });
+      
+      $("apiBase").value = settings.apiBase;
+      $("recordingDuration").value = settings.recordingDuration;
+      $("autoAnalysis").value = settings.autoAnalysis.toString();
+      $("defaultProjectId").value = settings.defaultProjectId;
+      $("queueInterval").value = settings.queueInterval;
+      $("chunkSize").value = settings.chunkSize;
+    }
+
+    // Save settings
+    $("save").onclick = async () => {
+      const settings = {
+        apiBase: $("apiBase").value.trim() || "/api",
+        recordingDuration: parseInt($("recordingDuration").value) || 0,
+        autoAnalysis: $("autoAnalysis").value === "true",
+        defaultProjectId: $("defaultProjectId").value.trim(),
+        queueInterval: parseFloat($("queueInterval").value) || 0.5,
+        chunkSize: parseInt($("chunkSize").value) || 5
+      };
+
+      await chrome.storage.sync.set(settings);
+      
+      // Update alarm interval
+      await chrome.alarms.clear("processQueue");
+      await chrome.alarms.create("processQueue", { periodInMinutes: settings.queueInterval });
+
+      $("status").className = "status success";
+      $("status").textContent = "Settings saved successfully!";
+      setTimeout(() => $("status").textContent = "", 3000);
+    };
+
+    // Reset to defaults
+    $("reset").onclick = async () => {
+      await chrome.storage.sync.clear();
+      await loadSettings();
+      $("status").className = "status success";
+      $("status").textContent = "Settings reset to defaults!";
+      setTimeout(() => $("status").textContent = "", 3000);
+    };
+
+    // Load on startup
+    loadSettings();
+  </script>
+</body>
+</html>
