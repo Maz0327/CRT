@@ -1,0 +1,10 @@
+## Legacy import paths (relative cn/utils)
+
+## UI-v2 lib duplicates
+
+## Mentions of old product names (content[-_ ]radar)
+
+## Possible duplicate helper files
+client/src/lib/utils.ts
+
+## Client-side Supabase usage (must be server-only)
