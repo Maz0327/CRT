@@ -1,0 +1,18 @@
+:root { color-scheme: dark light; font-synthesis-weight: none; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro", Inter, Arial, sans-serif; width: 360px; margin: 0; }
+header { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; backdrop-filter: blur(8px); background: rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.2); }
+.brand { font-weight:600; }
+.tabs { display:flex; gap:6px; padding:8px 8px; border-bottom:1px solid rgba(255,255,255,.1); }
+.tabs button { border:0; background:transparent; padding:6px 8px; border-radius:8px; cursor:pointer; }
+.tabs button.active { background: rgba(255,255,255,.12); }
+main { padding: 10px; }
+.row { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+textarea, input, select { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; }
+button { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; cursor:pointer; }
+.status, .result { margin-top:8px; font-size:12px; opacity:.9; white-space:pre-wrap; }
+.tab { display:none; }
+.tab.active { display:block; }
+.list { display:flex; flex-direction:column; gap:8px; }
+.card { padding:8px; border-radius:10px; background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); }
+dialog { padding:16px; border:1px solid rgba(255,255,255,.2); border-radius:12px; background: rgba(20,20,22,.96); color:white; width: 320px; }
+.hint { font-size:11px; opacity:.7; }

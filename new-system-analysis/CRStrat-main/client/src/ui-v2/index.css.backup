@@ -1,0 +1,201 @@
+@import './styles/tokens.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.ui-v2 {
+  font-family: ui-sans-serif, -apple-system, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle studio background helpers (optional; no hard override) */
+.ui-v2 .surface {
+  background: radial-gradient(1200px 800px at 20% -10%, rgba(255,255,255,0.06), transparent 50%),
+              radial-gradient(900px 700px at 120% 10%, rgba(100,150,255,0.06), transparent 55%);
+}
+
+/* Component-level utilities */
+@layer components {
+  /* Frosted glass card - enhanced for better readability */
+  .glass {
+    @apply backdrop-blur-xl rounded-2xl border shadow-xl;
+    background-color: rgba(15, 15, 20, 0.85);
+    border-color: rgba(255,255,255,0.15);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.1) inset,
+      0 20px 40px rgba(0,0,0,0.5),
+      0 8px 16px rgba(0,0,0,0.3);
+  }
+
+  /* Common card container */
+  .card {
+    @apply rounded-2xl border;
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border));
+  }
+
+  .card-muted {
+    @apply rounded-2xl border;
+    background-color: rgba(255,255,255,0.03);
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  .text-subtle { color: hsl(var(--muted-foreground)); }
+  .ring-acc   { box-shadow: 0 0 0 2px hsl(var(--ring)); }
+
+  /* Icon utilities for consistent sizing and appearance */
+  .icon-responsive {
+    @apply w-4 h-4 stroke-1;
+  }
+  
+  .icon-container {
+    @apply p-2 flex items-center justify-center;
+  }
+  
+  .icon-container-sm {
+    @apply p-1.5 flex items-center justify-center;
+  }
+  
+  .icon-center {
+    @apply flex items-center justify-center;
+  }
+
+  /* Touch targets for better mobile UX */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* Header glass effect - soft glassmorphism for light theme */
+  .glass-header {
+    @apply backdrop-blur-xl border-b;
+    background: rgba(var(--surface), 0.30);
+    border-color: rgba(var(--glass-border));
+    box-shadow: var(--shadow-1);
+  }
+
+  /* Enhanced glass dropdown/popover */
+  .glass-popover {
+    @apply backdrop-blur-xl rounded-xl border shadow-2xl;
+    background: rgba(10, 10, 15, 0.9);
+    border-color: rgba(255,255,255,0.2);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.1) inset,
+      0 24px 48px rgba(0,0,0,0.6),
+      0 8px 24px rgba(0,0,0,0.4);
+  }
+}
+
+/* === Soft Glassmorphism Theme Tokens (Light + Dark) === */
+:root {
+  /* surfaces - much more transparent for true glass effect */
+  --surface: 255 255 255;         /* base card tint (light) */
+  --surface-2: 248 249 251;
+  --text: 15 23 42;               /* darker for better contrast on glass */
+  --muted-text: 71 85 105;        /* darker muted text for readability */
+
+  /* borders & shadows - much softer */
+  --glass-border: 255 255 255 / 0.03;
+  --glass-ring: 139 92 246 / 0.15;
+  --shadow-1: 0 8px 32px rgba(139, 92, 246, 0.06);
+
+  /* pastel accents */
+  --accent-1: 139 92 246;         /* soft purple */
+  --accent-2: 236 72 153;         /* soft pink */
+  --accent-3: 34 197 94;          /* soft mint */
+
+  /* light theme - white bg with much stronger gradients for clear glass visibility */
+  --app-bg: 255 255 255;
+  --app-grad-a: 139 92 246 / 0.25;   /* much stronger purple for glass visibility */
+  --app-grad-b: 236 72 153 / 0.20;   /* much stronger pink */
+  --app-grad-c: 34 197 94 / 0.18;    /* much stronger mint */
+  --app-grad-d: 59 130 246 / 0.15;   /* much stronger blue */
+}
+
+:root[data-theme="dark"] {
+  --surface: 30 41 59;            /* slightly lighter for better text contrast */
+  --surface-2: 15 23 42;
+  --text: 248 250 252;            /* high contrast white */
+  --muted-text: 203 213 225;      /* lighter for better readability */
+
+  --glass-border: 255 255 255 / 0.05;
+  --glass-ring: 139 92 246 / 0.20;
+  --shadow-1: 0 12px 40px rgba(139, 92, 246, 0.15);
+
+  --accent-1: 147 51 234;
+  --accent-2: 236 72 153;
+  --accent-3: 34 197 94;
+
+  /* dark theme with organic gradients */
+  --app-bg: 15 23 42;
+  --app-grad-a: 139 92 246 / 0.12;
+  --app-grad-b: 236 72 153 / 0.08;
+  --app-grad-c: 34 197 94 / 0.06;
+  --app-grad-d: 59 130 246 / 0.10;
+}
+
+/* App background - organic scattered gradients for glass effect visibility */
+.ui-v2-app-bg {
+  background:
+    /* Scattered organic blob shapes */
+    radial-gradient(600px 400px at 85% 20%, rgba(var(--app-grad-a)) 0%, transparent 70%),
+    radial-gradient(800px 500px at 15% 80%, rgba(var(--app-grad-b)) 0%, transparent 65%),
+    radial-gradient(400px 600px at 60% 10%, rgba(var(--app-grad-c)) 0%, transparent 60%),
+    radial-gradient(500px 300px at 20% 40%, rgba(var(--app-grad-d)) 0%, transparent 75%),
+    radial-gradient(700px 400px at 90% 70%, rgba(var(--app-grad-a)) 0%, transparent 80%),
+    rgb(var(--app-bg));
+}
+
+/* Soft Glassmorphism utilities - ultra transparent with high contrast text */
+.frost-card {
+  background: rgba(var(--surface), 0.25);  /* Much more transparent */
+  backdrop-filter: saturate(120%) blur(20px);  /* Stronger blur */
+  -webkit-backdrop-filter: saturate(120%) blur(20px);
+  border: 1px solid rgba(var(--glass-border));  /* Barely visible border */
+  box-shadow: var(--shadow-1);
+  border-radius: 24px;  /* Softer, more organic radius */
+}
+
+.frost-strong { 
+  background: rgba(var(--surface), 0.35);  /* Slightly more opaque but still very glassy */
+}
+
+.frost-subtle { 
+  background: rgba(var(--surface), 0.15);  /* Ultra transparent */
+}
+
+.frost-border { border: 1px solid rgba(var(--glass-border)); }
+.frost-ring   { outline: 2px solid rgba(var(--glass-ring)); outline-offset: 2px; }
+
+.frost-input {
+  background: rgba(var(--surface), 0.30);
+  border: 1px solid rgba(var(--glass-border));
+  border-radius: 16px;
+}
+
+/* High contrast text for readability on glass */
+.text-ink { 
+  color: rgb(var(--text)); 
+  text-shadow: 0 1px 2px rgba(var(--text), 0.1);  /* Subtle text shadow for clarity */
+}
+
+.text-muted-ink { 
+  color: rgb(var(--muted-text)); 
+  text-shadow: 0 1px 2px rgba(var(--muted-text), 0.1);
+}
+
+/* Gentle hover with organic feel */
+.frost-hover:hover { 
+  background: rgba(var(--surface), 0.40); 
+  transform: translateY(-1px);
+  transition: all 200ms ease-out; 
+}
+
+/* IMPORTANT:
+   Do NOT declare @layer here.
+   Do NOT define classes like .bg-background or .border-border here.
+   Use Tailwind utilities in JSX (e.g., className="bg-background border-border") —
+   they are generated from the token mapping in tailwind.config + global index.css.
+*/
