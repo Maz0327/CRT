@@ -1,4 +1,5 @@
-import { api, IS_MOCK_MODE } from '../lib/api';
+import { api } from './api';
+import { IS_MOCK_MODE } from '../lib/api';
 import type { ID, Project } from '../types';
 
 export function listProjects() {
@@ -39,5 +40,5 @@ export function deleteProject(id: ID) {
   if (IS_MOCK_MODE) {
     return Promise.resolve({ success: true });
   }
-  return api.del(`/projects/${id}`);
+  return api.delete(`/projects/${id}`);
 }

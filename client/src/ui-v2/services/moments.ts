@@ -1,4 +1,5 @@
-import { api, IS_MOCK_MODE } from './http';
+import { api } from './api';
+import { IS_MOCK_MODE } from './http';
 import { Moment } from '../types';
 
 const mockMoments: Moment[] = [
