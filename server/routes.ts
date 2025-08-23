@@ -1543,7 +1543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await strategicIntelligence.correlateCulturalMoments(allSignals);
 
       // Step 4: Generate brief if requested
-      let brief = null;
+      let brief: any = null;
       if (generateBrief && allSignals.length > 0) {
         brief = await briefService.generateBrief(
           templateId,
@@ -1572,7 +1572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         culturalMoments: Array.isArray(culturalMoments)
           ? culturalMoments.length
           : 0,
-        brief: brief ? brief.id : null,
+        brief: brief?.id || null,
         data: {
           signals: allSignals,
           trends,
@@ -1974,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {});
 
-      const weeklyTrends = [];
+      const weeklyTrends: Array<{ date: string; captures: number; avgViralScore: number }> = [];
       const now = new Date();
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
