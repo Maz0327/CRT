@@ -300,27 +300,22 @@ app.use((req, res, next) => {
   );
   startMomentsAggregator();
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "development") {
-    const { setupVite } = await import("./vite");
-    await setupVite(app, server);
-  } else {
-    // Serve static files directly without importing from vite.ts
-    import("fs").then(fs => {
-      const distPath = path.resolve(__dirname, "public");
-      if (fs.existsSync(distPath)) {
-        app.use(express.static(distPath));
-        app.use("*", (_req, res) => {
-          res.sendFile(path.resolve(distPath, "index.html"));
-        });
-        console.log(`[server] serving static files from ${distPath}`);
-      } else {
-        console.log(`[server] static directory not found: ${distPath}`);
-      }
-    });
-  }
+  // TEMPORARY: Skip Vite setup due to import.meta.dirname issue
+  // Serve client files directly in both dev and production modes
+  import("fs").then(fs => {
+    const clientPath = path.resolve(process.cwd(), "client");
+    if (fs.existsSync(clientPath)) {
+      // In development, serve files directly from client folder
+      app.use(express.static(clientPath));
+      app.use("/src", express.static(path.join(clientPath, "src")));
+      app.use("*", (_req, res) => {
+        res.sendFile(path.resolve(clientPath, "index.html"));
+      });
+      console.log(`[server] serving client files from ${clientPath}`);
+    } else {
+      console.log(`[server] client directory not found: ${clientPath}`);
+    }
+  });
 
   // Global error handling middleware - MUST be after Vite setup
   app.use(errorLogger);
