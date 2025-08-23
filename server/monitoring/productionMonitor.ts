@@ -181,7 +181,7 @@ export class ProductionMonitor {
    * Performance alert system
    */
   async checkPerformanceAlerts(): Promise<Array<{ level: 'warning' | 'critical'; message: string }>> {
-    const alerts = [];
+    const alerts: Array<{ level: 'warning' | 'critical'; message: string }> = [];
     const metrics = await this.collectMetrics();
 
     // Memory alerts

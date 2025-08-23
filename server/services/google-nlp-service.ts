@@ -114,7 +114,7 @@ export class GoogleNLPService {
   }
 
   private generateNLPInsights(analysis: any): string[] {
-    const insights = [];
+    const insights: string[] = [];
 
     // Sentiment insights
     if (analysis.sentiment.magnitude > 0.6) {

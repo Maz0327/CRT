@@ -410,8 +410,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
     try {
-      const setClause = [];
-      const values = [];
+      const setClause: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       // Build dynamic SET clause

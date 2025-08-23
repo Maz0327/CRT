@@ -761,7 +761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
 
       // Create the sample captures
-      const createdCaptures = [];
+      const createdCaptures: any[] = [];
       for (const capture of sampleCaptures) {
         const created = await storage.createCapture(capture);
         createdCaptures.push(created);

@@ -64,7 +64,7 @@ export class GoogleSlidesService {
   }
 
   private buildSlideRequests(briefData: any, titleSlideId: string) {
-    const requests = [];
+    const requests: any[] = [];
 
     // Title slide content
     requests.push({
