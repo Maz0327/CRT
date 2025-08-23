@@ -1,0 +1,80 @@
+Sweet — here’s your Step 17 block, ready for the Replit Agent. It makes the small-but-loud UI type fixes we planned. It will stop after running typecheck and report what’s left.
+
+⸻
+
+Agent instructions — STEP 17 (UI-v2 type fixes)
+
+Goal: Resolve common UI type mismatches so key pages compile.
+	1.	Edit client/src/ui-v2/types.ts
+	•	Open the file. If it does not exist, STOP and show me the folder tree of client/src/ui-v2/.
+	•	In the interfaces:
+	•	Ensure Block has:
+	•	weight?: number | string
+	•	w?: number
+	•	h?: number
+	•	Ensure Slide has:
+	•	captureRefs?: string[]
+	•	Ensure the top-level Brief (or whatever the brief object is named) has:
+	•	slideCount?: number
+	•	If any of these interfaces don’t exist, STOP and paste the file contents so I can guide you.
+	2.	Fix react-day-picker props in client/src/components/ui/calendar.tsx
+	•	Open the file. If missing, STOP and search the repo for react-day-picker and show me the matches.
+	•	Find the DayPicker usage where it passes components={{ IconLeft: ..., IconRight: ... }} (or a similar components prop).
+	•	Remove the entire components={...} prop block from the DayPicker JSX.
+	•	Do not remove the DayPicker itself — only the components prop.
+	•	Save.
+	3.	Fix chart payload access in client/src/components/ui/chart.tsx
+	•	Open the file. If missing, STOP and search for chart.tsx and show me matches.
+	•	Find: const key = \${nameKey || item.dataKey || “value”}``
+	•	Replace with:
+
+const key = `${nameKey || (item as any)?.dataKey || "value"}`
+
+
+	•	Save.
+
+	4.	Enable align and destructive props on Popover components
+	•	Search the repo for the type/interface declarations of PopoverMenuProps and PopoverMenuItemProps (likely under client/src/ui-v2/components or client/src/components/ui).
+	•	Example filenames might include: PopoverMenu.tsx, popover.tsx, or popover-menu.tsx.
+	•	Open the file(s) where these types are declared. If you can’t find the declarations, STOP and paste the file(s) using/defining Popover menu components so I can point to the exact spot.
+	•	In the type/interface for PopoverMenuProps, add:
+
+align?: 'left' | 'right';
+
+
+	•	In the type/interface for PopoverMenuItemProps, add:
+
+destructive?: boolean;
+
+
+	•	Do not change any runtime logic yet — this is just widening the allowed props.
+	•	Save.
+
+	5.	Fix onDragStart type in client/src/ui-v2/brief-canvas/SlideThumb.tsx
+	•	Open the file. If the path differs, search for SlideThumb.tsx and open it.
+	•	Find the JSX passing onDragStart={onDragStart} to a motion.div/div from framer-motion.
+	•	Change to:
+
+onDragStart={onDragStart as any}
+
+(We’ll type this properly later; this unblocks compilation.)
+
+	•	Save.
+
+	6.	Run quick checks
+	•	Execute:
+
+npm run typecheck || true
+
+
+	•	Report back:
+	•	How many TypeScript errors total now.
+	•	Whether these specific files are clean or still erroring:
+	•	client/src/ui-v2/types.ts
+	•	client/src/components/ui/calendar.tsx
+	•	client/src/components/ui/chart.tsx
+	•	(the Popover types file you edited)
+	•	client/src/ui-v2/brief-canvas/SlideThumb.tsx
+	•	STOP and wait for my confirmation before moving to Step 18.
+
+If any file paths differ or a search comes up empty: paste the file tree or the file contents, and STOP for my input.

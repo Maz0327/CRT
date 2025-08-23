@@ -41,6 +41,7 @@ export interface Brief {
   created_at?: string;
   updated_at?: string;
   slides?: any[];
+  slideCount?: number;
 }
 
 export interface BriefDetail extends Brief {
@@ -53,6 +54,7 @@ export interface Slide {
   title?: string;
   order_index: number;
   blocks: any[];
+  captureRefs?: string[];
 }
 
 export interface UserFeed {

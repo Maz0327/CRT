@@ -31,7 +31,7 @@ export function SlideThumb({
       )}
       onClick={onClick}
       draggable
-      onDragStart={onDragStart}
+      onDragStart={onDragStart as any}
       onDragOver={onDragOver}
       onDrop={onDrop}
       whileHover={{ scale: 1.02 }}

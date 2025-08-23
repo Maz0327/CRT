@@ -8,7 +8,7 @@ export function listProjects() {
       { id: 'proj-1', name: 'Sample Project', created_at: '2024-01-01T00:00:00Z' }
     ]);
   }
-  return api.get('/projects').then(res => res.rows || res.data || []);
+  return api.get<any>('/projects').then((res: any) => res.rows || res.data || []);
 }
 
 export function getProject(id: ID) {
