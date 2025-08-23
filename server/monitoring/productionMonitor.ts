@@ -242,7 +242,7 @@ export class ProductionMonitor {
     score: number;
     checks: Array<{ name: string; passed: boolean; message: string }>;
   }> {
-    const checks = [];
+    const checks: Array<{ name: string; passed: boolean; message: string }> = [];
     let passedChecks = 0;
 
     // Database connectivity

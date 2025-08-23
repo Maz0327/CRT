@@ -1526,7 +1526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
       // Step 2: Fetch Tier 2 intelligence
-      const tier2Data = [];
+      const tier2Data: any[] = [];
       for (const platform of tier2Platforms) {
         const data = await tier2Service.fetchPlatformData(
           platform,
