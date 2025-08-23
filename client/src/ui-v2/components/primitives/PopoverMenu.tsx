@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface PopoverMenuProps {
   trigger: ReactNode;
   children: ReactNode;
+  align?: string;
 }
 
 export function PopoverMenu({ trigger, children }: PopoverMenuProps) {
@@ -44,9 +45,10 @@ interface PopoverMenuItemProps {
   children: ReactNode;
   onClick?: () => void;
   icon?: ReactNode;
+  destructive?: boolean;
 }
 
-export function PopoverMenuItem({ children, onClick, icon }: PopoverMenuItemProps) {
+export function PopoverMenuItem({ children, onClick, icon, destructive }: PopoverMenuItemProps) {
   return (
     <button
       onClick={onClick}

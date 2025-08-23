@@ -94,8 +94,10 @@ export interface Block {
   alt?: string;
   text?: string;
   fontSize?: number;
-  weight?: string;
+  weight?: string | number;
   align?: string;
+  w?: number;
+  h?: number;
   sourceCaptureId?: string;
 }
 
