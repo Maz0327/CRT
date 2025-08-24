@@ -1,27 +1,48 @@
 // client/src/lib/api.ts
-export type Json = Record<string, any> | any[];
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
-async function apiRequest<T = unknown>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    credentials: "include",
-    ...init,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+const BASE = (import.meta as any)?.env?.VITE_API_BASE ?? '/api';
+
+async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  const url = path.startsWith('http') ? path : `${BASE}${path}`;
+  const headers = new Headers(init.headers || {});
+  if (!headers.has('Content-Type') && init.body && typeof init.body !== 'string' && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
   }
-  // try json, fallback to void
-  const ct = res.headers.get("content-type") || "";
-  return ct.includes("application/json") ? (await res.json()) as T : (undefined as T);
+
+  const res = await fetch(url, { credentials: 'include', ...init, headers });
+  const text = await res.text();
+
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) || `Request failed (${res.status})`;
+    const err = new Error(msg) as any;
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data as T;
 }
 
 export const api = {
-  get: <T = unknown>(url: string) => apiRequest<T>(url),
-  post: <T = unknown>(url: string, body?: unknown) =>
-    apiRequest<T>(url, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
-  patch: <T = unknown>(url: string, body?: unknown) =>
-    apiRequest<T>(url, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
-  del: <T = unknown>(url: string) =>
-    apiRequest<T>(url, { method: "DELETE" }),
+  request,
+  get<T = unknown>(path: string) {
+    return request<T>(path);
+  },
+  post<T = unknown>(path: string, body?: any) {
+    return request<T>(path, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body) });
+  },
+  patch<T = unknown>(path: string, body?: any) {
+    return request<T>(path, { method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body) });
+  },
+  put<T = unknown>(path: string, body?: any) {
+    return request<T>(path, { method: 'PUT', body: body instanceof FormData ? body : JSON.stringify(body) });
+  },
+  del<T = unknown>(path: string) {
+    return request<T>(path, { method: 'DELETE' });
+  },
 };
+
+export default api;

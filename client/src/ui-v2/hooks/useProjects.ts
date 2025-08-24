@@ -1,31 +1,45 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listProjects, createProject as createProjectAPI } from '../services/projects';
-import { Project } from '../types';
+// client/src/ui-v2/hooks/useProjects.ts
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createProject as svcCreate, deleteProject as svcDelete, listProjects, updateProject as svcUpdate, Project } from '@/ui-v2/services/projects';
 
 export function useProjects() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
-  const { data: projects = [], isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['projects'],
-    queryFn: () => listProjects(),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    queryFn: listProjects,
   });
 
-  const createMutation = useMutation({
-    mutationFn: createProjectAPI,
-    onSuccess: (newProject) => {
-      queryClient.setQueriesData(
-        { queryKey: ['projects'] },
-        (old: Project[] = []) => [...old, newProject]
+  const createProject = useMutation({
+    mutationFn: (input: { name: string }) => svcCreate(input),
+    onSuccess: (created) => {
+      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) => [...old, created]);
+    },
+  });
+
+  const updateProject = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<Project> }) => svcUpdate(id, input),
+    onSuccess: (updated) => {
+      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) =>
+        old.map((p) => (p.id === updated.id ? updated : p)),
       );
     },
   });
 
+  const deleteProject = useMutation({
+    mutationFn: (id: string) => svcDelete(id),
+    onSuccess: (_res, id) => {
+      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) => old.filter((p) => p.id !== id));
+    },
+  });
+
   return {
-    projects,
+    projects: data ?? [],
     isLoading,
-    error,
-    createProject: createMutation.mutateAsync,
-    isCreating: createMutation.isPending,
+    error: (error as Error) || null,
+    createProject: createProject.mutateAsync,
+    updateProject: updateProject.mutateAsync,
+    deleteProject: deleteProject.mutateAsync,
+    isCreating: createProject.isPending,
   };
 }

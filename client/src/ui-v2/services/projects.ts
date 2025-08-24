@@ -1,44 +1,26 @@
-import { api } from './api';
-import { IS_MOCK_MODE } from '../lib/api';
-import type { ID, Project } from '../types';
+// client/src/ui-v2/services/projects.ts
+import api from '@/lib/api';
 
-export function listProjects() {
-  if (IS_MOCK_MODE) {
-    return Promise.resolve([
-      { id: 'proj-1', name: 'Sample Project', created_at: '2024-01-01T00:00:00Z' }
-    ]);
-  }
-  return api.get<any>('/projects').then((res: any) => res.rows || res.data || []);
+export interface Project {
+  id: string;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
+  // add fields you actually use in the UI
 }
 
-export function getProject(id: ID) {
-  if (IS_MOCK_MODE) {
-    return Promise.resolve({ id, name: 'Sample Project', created_at: '2024-01-01T00:00:00Z' });
-  }
-  return api.get(`/projects/${id}`);
+export async function listProjects(): Promise<Project[]> {
+  return api.get<Project[]>('/projects');
 }
 
-export function createProject(payload: { name: string }) {
-  if (IS_MOCK_MODE) {
-    return Promise.resolve({ 
-      id: `proj-${Date.now()}`, 
-      name: payload.name, 
-      created_at: new Date().toISOString() 
-    });
-  }
-  return api.post('/projects', payload);
+export async function createProject(input: { name: string }): Promise<Project> {
+  return api.post<Project>('/projects', input);
 }
 
-export function updateProject(id: ID, patch: Partial<Project>) {
-  if (IS_MOCK_MODE) {
-    return Promise.resolve({ id, ...patch, created_at: '2024-01-01T00:00:00Z' });
-  }
-  return api.patch(`/projects/${id}`, patch);
+export async function updateProject(projectId: string, input: Partial<Project>): Promise<Project> {
+  return api.patch<Project>(`/projects/${projectId}`, input);
 }
 
-export function deleteProject(id: ID) {
-  if (IS_MOCK_MODE) {
-    return Promise.resolve({ success: true });
-  }
-  return api.delete(`/projects/${id}`);
+export async function deleteProject(projectId: string): Promise<{ success: true }> {
+  return api.del<{ success: true }>(`/projects/${projectId}`);
 }

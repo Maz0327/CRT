@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Type, Image, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createTruthCheck } from '../../services/truth';
+import { getTruthCheck } from '../../services/truth';
 
 interface TruthTabsProps {
   onAnalysisStart?: (result: any) => void;
@@ -53,7 +53,7 @@ export function TruthTabs({ onAnalysisStart, projectId, className }: TruthTabsPr
         payload.file = selectedFile;
       }
 
-      const result = await createTruthCheck(payload);
+      const result = await getTruthCheck(payload);
       
       // Clear form
       setUrlInput('');

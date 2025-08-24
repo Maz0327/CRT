@@ -37,13 +37,19 @@ export default function CapturesInboxPage() {
   const isLoading = capturesQuery?.isLoading || false;
 
   // Create updateStatus function using the updateCapture service
-  const updateStatus = async (captureId: string, status: 'new' | 'keep' | 'trash') => {
+  type CaptureStatus = 'new' | 'keep' | 'trash';
+
+  async function updateStatus(arg1: string | { id: string; status: CaptureStatus }, arg2?: CaptureStatus) {
+    const id = typeof arg1 === 'string' ? arg1 : arg1.id;
+    const status = typeof arg1 === 'string' ? (arg2 as CaptureStatus) : arg1.status;
+    if (!id || !status) throw new Error('updateStatus requires id and status');
+
     try {
-      await updateCapture(captureId, { status });
+      await updateCapture(id, { status });
     } catch (error) {
       console.error('Failed to update capture status:', error);
     }
-  };
+  }
 
   // Get unique platforms and tags for filters
   const { platforms, allTags } = useMemo(() => {
