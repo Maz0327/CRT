@@ -34,3 +34,14 @@ export function getTruthCheck(id: ID) {
 export function retryTruthCheck(id: ID) {
   return api.post<{ ok: true, check: TruthCheck }>(`/truth/retry/${id}`, {});
 }
+
+export async function createTruthCheck(input: { url?: string; text?: string }) {
+  const res = await fetch('/api/truth/checks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error('Failed to create truth check');
+  return res.json();
+}

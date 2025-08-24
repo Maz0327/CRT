@@ -1,29 +1,25 @@
 // client/src/lib/api.ts
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
-const BASE = (import.meta as any)?.env?.VITE_API_BASE ?? '/api';
+const BASE =
+  import.meta.env.VITE_API_BASE ||
+  import.meta.env.VITE_API_URL ||
+  '/api';
 
-async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const url = path.startsWith('http') ? path : `${BASE}${path}`;
-  const headers = new Headers(init.headers || {});
-  if (!headers.has('Content-Type') && init.body && typeof init.body !== 'string' && !(init.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const res = await fetch(url, { credentials: 'include', ...init, headers });
-  const text = await res.text();
-
-  let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+    ...init,
+  });
   if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || `Request failed (${res.status})`;
-    const err = new Error(msg) as any;
-    err.status = res.status;
-    err.data = data;
-    throw err;
+    const text = await res.text().catch(() => '');
+    throw new Error(`API ${init.method || 'GET'} ${url} failed: ${res.status} ${text}`);
   }
-  return data as T;
+  // allow empty responses
+  if (res.status === 204) return undefined as unknown as T;
+  return (await res.json().catch(() => ({}))) as T;
 }
 
 export const api = {

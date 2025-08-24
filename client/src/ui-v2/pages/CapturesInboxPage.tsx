@@ -196,17 +196,17 @@ export default function CapturesInboxPage() {
                                 align="right"
                               >
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'new' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'new').catch(console.error)}
                                 >
                                   Move to New
                                 </PopoverMenuItem>
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'keep' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'keep').catch(console.error)}
                                 >
                                   Move to Keep
                                 </PopoverMenuItem>
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'trash' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'trash').catch(console.error)}
                                 >
                                   Move to Trash
                                 </PopoverMenuItem>
@@ -327,17 +327,17 @@ export default function CapturesInboxPage() {
                                 align="right"
                               >
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'new' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'new').catch(console.error)}
                                 >
                                   Move to New
                                 </PopoverMenuItem>
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'keep' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'keep').catch(console.error)}
                                 >
                                   Move to Keep
                                 </PopoverMenuItem>
                                 <PopoverMenuItem
-                                  onClick={() => updateStatus({ id: capture.id, status: 'trash' }).catch(console.error)}
+                                  onClick={() => updateStatus(capture.id, 'trash').catch(console.error)}
                                 >
                                   Move to Trash
                                 </PopoverMenuItem>

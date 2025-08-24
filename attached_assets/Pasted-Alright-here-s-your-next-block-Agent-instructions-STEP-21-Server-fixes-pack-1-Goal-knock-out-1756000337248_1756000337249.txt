@@ -1,0 +1,144 @@
+Alright—here’s your next block.
+
+Agent instructions — STEP 21 (Server fixes pack 1)
+
+Goal: knock out a bunch of server-side TS/runtime errors with surgical patches (OpenAI params, prod import, validation generics, Buffer typing), add small shims/stubs, then re-typecheck and report.
+
+If any target file does not exist, STOP, print a short tree for its folder, and wait for me.
+
+⸻
+
+21.1 — Fix OpenAI param name (max_completion_tokens → max_tokens)
+
+This removes the SDK error in server/services/capture-truth-analysis.ts.
+
+set -e
+
+test -f server/services/capture-truth-analysis.ts || {
+  echo "❌ server/services/capture-truth-analysis.ts missing"; ls -la server/services || true; exit 1; }
+
+perl -0777 -pe 's/max_completion_tokens\s*:/max_tokens: /g' \
+  -i server/services/capture-truth-analysis.ts
+
+echo "✅ Replaced max_completion_tokens with max_tokens"
+
+
+⸻
+
+21.2 — Fix prod server import and loose param typing
+
+Removes the “.ts import” error and implicit any errors.
+
+test -f server/prod-server.ts || {
+  echo "❌ server/prod-server.ts missing"; ls -la server || true; exit 1; }
+
+perl -0777 -pe \
+  's/import\("\.\/index\.ts"\)/import("\.\/index")/g;
+   s/\(req, _res, next\)/\(req: any, _res: any, next: any\)/g;
+   s/\(req, res, next\)/\(req: any, res: any, next: any\)/g' \
+  -i server/prod-server.ts
+
+echo "✅ Fixed prod-server import & param types"
+
+
+⸻
+
+21.3 — Relax Buffer typing in supabaseStorage
+
+Silences Buffer overload complaints without changing behavior.
+
+test -f server/lib/supabaseStorage.ts || {
+  echo "❌ server/lib/supabaseStorage.ts missing"; ls -la server/lib || true; exit 1; }
+
+perl -0777 -pe \
+  's/Buffer\.from\(chunk\)/Buffer.from(chunk as any)/g; s/Buffer\.concat\(chunks\)/Buffer.concat(chunks as any)/g' \
+  -i server/lib/supabaseStorage.ts
+
+echo "✅ Loosened Buffer typings in supabaseStorage"
+
+
+⸻
+
+21.4 — Ease Zod validation generics
+
+Constrain generics and cast assignments to Express’s shapes.
+
+test -f server/middleware/validation.ts || {
+  echo "❌ server/middleware/validation.ts missing"; ls -la server/middleware || true; exit 1; }
+
+# add "extends any" on generic, cast assigned values
+perl -0777 -pe \
+  's/export function validateQuery<[^>]+>\(schema: z\.ZodSchema<[^>]+>\)/export function validateQuery<T extends any>(schema: z.ZodSchema<T>)/g;
+   s/req\.query = schema\.parse\(req\.query\);/req.query = schema.parse(req.query) as any;/g;
+   s/export function validateParams<[^>]+>\(schema: z\.ZodSchema<[^>]+>\)/export function validateParams<T extends any>(schema: z.ZodSchema<T>)/g;
+   s/req\.params = schema\.parse\(req\.params\);/req.params = schema.parse(req.params) as any;/g' \
+  -i server/middleware/validation.ts
+
+echo "✅ Tweaked validation generics/casts"
+
+
+⸻
+
+21.5 — Make truth routes import match (named → default)
+
+Fixes: Module './truth' has no exported member 'registerTruthRoutes'.
+
+test -f server/routes/index.ts || {
+  echo "❌ server/routes/index.ts missing"; ls -la server/routes || true; exit 1; }
+
+perl -0777 -pe \
+  's/import\s+\{\s*registerTruthRoutes\s*\}\s+from\s+"\.\/truth";/import registerTruthRoutes from ".\/truth";/g' \
+  -i server/routes/index.ts
+
+echo "✅ Switched truth routes import to default"
+
+
+⸻
+
+21.6 — Stub missing analysis enqueue (compile-only)
+
+Avoids “Cannot find module ‘../services/analysis/enqueue’”.
+
+mkdir -p server/services/analysis
+cat > server/services/analysis/enqueue.ts <<'TS'
+export async function enqueueAnalysis(_input: any) {
+  // stub: no-op on this environment — server may skip background analysis
+  return { enqueued: false, reason: 'stubbed in dev' };
+}
+export default { enqueueAnalysis };
+TS
+echo "✅ Stubbed server/services/analysis/enqueue.ts"
+
+
+⸻
+
+21.7 — Add type shims for remaining server-only libs
+
+We already added some earlier; extend with vision.
+
+mkdir -p server/types
+grep -q "@google-cloud/vision" server/types/shims.d.ts 2>/dev/null || \
+  echo "declare module '@google-cloud/vision';" >> server/types/shims.d.ts
+
+echo "✅ Added @google-cloud/vision shim"
+
+
+⸻
+
+21.8 — Re-run typecheck and show a focused summary
+
+npm run typecheck || true
+
+echo "—— Focus check (should be gone/fixed):"
+rg -n "max_completion_tokens|index\.ts\"|enqueue'|validation\.ts|supabaseStorage\.ts|registerTruthRoutes" || true
+
+Report back to me:
+	•	The new total TS error count from npm run typecheck.
+	•	Any remaining errors that mention these files:
+	•	server/services/capture-truth-analysis.ts
+	•	server/prod-server.ts
+	•	server/middleware/validation.ts
+	•	server/lib/supabaseStorage.ts
+	•	server/routes/index.ts
+	•	server/services/analysis/enqueue.ts
+	•	Then STOP and wait.
