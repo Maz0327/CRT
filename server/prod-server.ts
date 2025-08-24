@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 // Try to reuse your existing app from server/index.ts (if it exports one)
 let app: any;
 try {
-  const mod = await import("./index.ts");
+  const mod = await import("./index");
   app = (mod as any).app ?? (mod as any).default;
 } catch {
   app = express();
@@ -26,9 +26,9 @@ const clientDir = candidates.find(d => fs.existsSync(path.join(d, "index.html"))
 console.log("[prod-server] Serving static from:", clientDir);
 
 // Static files (non-/api routes)
-app.use((req, _res, next) => (req.url.startsWith("/api/") ? next() : next()));
+app.use((req: any, _res: any, next: any) => (req.url.startsWith("/api/") ? next() : next()));
 app.use(express.static(clientDir, { index: "index.html", maxAge: "1h" }));
-app.get("*", (req, res, next) => {
+app.get("*", (req: any, res: any, next: any) => {
   if (req.path.startsWith("/api/")) return next();
   res.sendFile(path.join(clientDir, "index.html"));
 });

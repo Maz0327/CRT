@@ -21,9 +21,9 @@ export async function putObjectFromStream({
     // Convert stream to buffer
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
-      chunks.push(Buffer.from(chunk));
+      chunks.push(Buffer.from(chunk as any));
     }
-    const buffer = Buffer.concat(chunks);
+    const buffer = Buffer.concat(chunks as any);
 
     const { data, error } = await supabase.storage
       .from(bucket)

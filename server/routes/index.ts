@@ -5,7 +5,7 @@ import googleExportsRouter from "./google-exports";
 import { setupSettingsRoutes } from "./settings";
 import { setupAnnotationsRoutes } from "./annotations";
 import { setupAnalyticsRoutes } from "./analytics";
-import { registerTruthRoutes } from "./truth";
+import registerTruthRoutes from "./truth";
 import searchRouter from "./search";
 
 export function buildApiRouter() {
