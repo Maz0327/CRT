@@ -38,7 +38,7 @@ export function etag(options: CacheOptions = {}) {
       }
       
       // Call original send
-      return originalSend.call(this, body);
+      return originalSend.call(this as any, body);
     } as any;
     
     next();

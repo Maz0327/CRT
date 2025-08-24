@@ -28,19 +28,19 @@ export class GoogleDriveService {
       const folderName = `Content Radar – ${projectName || projectId}`;
       
       // Search for existing folder
-      const searchResponse = await drive.files.list({
+      const searchResponse = await (drive.files.list as any)({
         q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         fields: 'files(id, name)',
       });
 
-      if (searchResponse.data.files && searchResponse.data.files.length > 0) {
+      if ((searchResponse as any).data.files && (searchResponse as any).data.files.length > 0) {
         console.log(`Found existing project folder: ${folderName}`);
-        return searchResponse.data.files[0].id!;
+        return (searchResponse as any).data.files[0].id!;
       }
 
       // Create new folder
       console.log(`Creating new project folder: ${folderName}`);
-      const createResponse = await drive.files.create({
+      const createResponse = await (drive.files.create as any)({
         requestBody: {
           name: folderName,
           mimeType: 'application/vnd.google-apps.folder',
@@ -48,7 +48,7 @@ export class GoogleDriveService {
         fields: 'id',
       });
 
-      return createResponse.data.id!;
+      return (createResponse as any).data.id!;
     } catch (error) {
       console.error('Error ensuring project folder:', error);
       throw new Error('Failed to create or find project folder in Google Drive');
@@ -61,7 +61,7 @@ export class GoogleDriveService {
       const oauth2Client = await this.oauthService.getOAuth2Client(userId);
       const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-      const response = await drive.files.create({
+      const response = await (drive.files.create as any)({
         requestBody: {
           name: fileName,
           mimeType: mimeType,
@@ -71,8 +71,8 @@ export class GoogleDriveService {
       });
 
       return {
-        fileId: response.data.id!,
-        webViewLink: response.data.webViewLink!,
+        fileId: (response as any).data.id!,
+        webViewLink: (response as any).data.webViewLink!,
       };
     } catch (error) {
       console.error('Error creating file in folder:', error);
@@ -86,12 +86,12 @@ export class GoogleDriveService {
       const oauth2Client = await this.oauthService.getOAuth2Client(userId);
       const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-      const response = await drive.files.get({
+      const response = await (drive.files.get as any)({
         fileId: fileId,
         fields: 'id, name, webViewLink, exportLinks',
       });
 
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       console.error('Error getting file info:', error);
       throw new Error('Failed to get file information from Google Drive');

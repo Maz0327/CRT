@@ -1,4 +1,4 @@
-import * as cron from 'node-cron';
+import cron from 'node-cron';
 import { ContentFetcher } from './contentFetcher';
 import { BrightDataService } from './brightDataService';
 import { BrightDataBrowserService } from './brightDataBrowser';

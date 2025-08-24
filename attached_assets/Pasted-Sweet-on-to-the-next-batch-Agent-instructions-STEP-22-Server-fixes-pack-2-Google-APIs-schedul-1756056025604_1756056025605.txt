@@ -1,0 +1,171 @@
+Sweet—on to the next batch.
+
+Agent instructions — STEP 22 (Server fixes pack 2: Google APIs, schedulers, shims)
+
+Goal: clear the remaining server-side TypeScript blockers (Google Drive/Slides, cron, jsdom/readability, pdf-parse, a few strict typings). We’ll prefer minimal, safe casts/shims so we can keep shipping.
+
+If any target file is missing, STOP, print a short ls -la for that folder, and wait for me.
+
+⸻
+
+22.1 — Install/declare missing types & shims
+
+set -e
+
+# Types we can actually install
+npm i -D @types/node-cron @types/jsdom
+
+# Central shim file for modules without (or flaky) types
+mkdir -p server/types
+cat >> server/types/shims.d.ts <<'TS'
+// --- central ambient module declarations ---
+declare module 'pdf-parse';
+declare module '@mozilla/readability';
+// (kept for completeness; we added earlier but append harmlessly)
+declare module '@google-cloud/vision';
+TS
+echo "✅ Installed types and wrote server/types/shims.d.ts"
+
+
+⸻
+
+22.2 — node-cron import style (fixes typing)
+
+test -f server/services/scheduler.ts || { echo "❌ missing server/services/scheduler.ts"; ls -la server/services || true; exit 1; }
+
+# Convert "import * as cron" → default import (matches @types/node-cron)
+perl -0777 -pe "s/import\\s+\\*\\s+as\\s+cron\\s+from\\s+'node-cron';/import cron from 'node-cron';/g" \
+  -i server/services/scheduler.ts
+
+echo "✅ scheduler.ts import patched"
+
+
+⸻
+
+22.3 — Soften crypto/Buffer typing in captures route
+
+test -f server/routes/captures.ts || { echo "❌ missing server/routes/captures.ts"; ls -la server/routes || true; exit 1; }
+
+# Allow Buffer-ish payloads without TS complaining
+perl -0777 -pe 's/createHash\\("sha256"\\)\\.update\\(([^)]+)\\)/createHash("sha256").update(\\1 as any)/g' \
+  -i server/routes/captures.ts
+
+echo "✅ captures.ts Buffer typing eased"
+
+
+⸻
+
+22.4 — Fix ext-capture payload key (user_id → userId)
+
+test -f server/routes/ext-capture.ts || { echo "❌ missing server/routes/ext-capture.ts"; ls -la server/routes || true; exit 1; }
+
+perl -0777 -pe 's/\\buser_id\\s*:/userId:/g' -i server/routes/ext-capture.ts
+
+echo "✅ ext-capture.ts user_id → userId"
+
+
+⸻
+
+22.5 — Google Drive service: cast over brittle overloads
+
+The googleapis client has multiple overloads; TS is picking the callback one (hence errors like “property ‘q’ not in BodyResponseCallback”). We’ll safely cast the method calls and responses.
+
+test -f server/services/google/drive.ts || { echo "❌ missing server/services/google/drive.ts"; ls -la server/services/google || true; exit 1; }
+
+perl -0777 -pe '
+  s/drive\\.files\\.list\\(/(drive.files.list as any)\\(/g;
+  s/drive\\.files\\.create\\(/(drive.files.create as any)\\(/g;
+  s/drive\\.files\\.update\\(/(drive.files.update as any)\\(/g;
+  s/drive\\.files\\.get\\(/(drive.files.get as any)\\(/g;
+  s/(\\b\\w+)\\.data/(\1 as any).data/g;
+' -i server/services/google/drive.ts
+
+echo "✅ google/drive.ts casts applied"
+
+
+⸻
+
+22.6 — Google Slides service: same strategy
+
+test -f server/services/google/slides.ts || { echo "❌ missing server/services/google/slides.ts"; ls -la server/services/google || true; exit 1; }
+
+perl -0777 -pe '
+  s/slides\\.presentations\\.create\\(/(slides.presentations.create as any)\\(/g;
+  s/slides\\.presentations\\.batchUpdate\\(/(slides.presentations.batchUpdate as any)\\(/g;
+  s/drive\\.files\\.update\\(/(drive.files.update as any)\\(/g;
+  s/(\\b\\w+)\\.data/(\1 as any).data/g;
+' -i server/services/google/slides.ts
+
+echo "✅ google/slides.ts casts applied"
+
+
+⸻
+
+22.7 — Truth extraction deps are server-only (types solved by shims)
+
+Nothing to edit here now—@types/jsdom plus our shim for @mozilla/readability covers the compile.
+
+⸻
+
+22.8 — Cache helper “this” typing
+
+test -f server/lib/cache.ts || { echo "❌ missing server/lib/cache.ts"; ls -la server/lib || true; exit 1; }
+
+perl -0777 -pe 's/originalSend\\.call\\(this, body\\)/originalSend.call(this as any, body)/g' \
+  -i server/lib/cache.ts
+
+echo "✅ cache.ts this-typing patched"
+
+
+⸻
+
+22.9 — Pipeline provider narrowing (ENV → union)
+
+test -f server/workers/analysis/pipeline.ts || { echo "❌ missing server/workers/analysis/pipeline.ts"; ls -la server/workers/analysis || true; exit 1; }
+
+perl -0777 -pe "s/provider:\\s*process\\.env\\.MEDIA_PROVIDER\\s*\\|\\|\\s*'google'/provider: (process.env.MEDIA_PROVIDER as 'google'|'openai'|'mock') || 'google'/g" \
+  -i server/workers/analysis/pipeline.ts
+
+echo "✅ pipeline provider typed"
+
+
+⸻
+
+22.10 — Google export route: legacy fields behind casts
+
+test -f server/routes/google-export.ts || { echo "❌ missing server/routes/google-export.ts"; ls -la server/routes || true; exit 1; }
+
+perl -0777 -pe "
+  s/req\\.user\\.id/(req as any).user?.id/g;
+  s/briefData\\.user_id/(briefData as any).user_id/g;
+  s/briefData\\.define_section/(briefData as any).define_section/g;
+  s/briefData\\.shift_section/(briefData as any).shift_section/g;
+  s/briefData\\.deliver_section/(briefData as any).deliver_section/g;
+  s/briefData\\.client_profile_id/(briefData as any).client_profile_id/g;
+  s/drive_file_id:\\s*result\\.driveFileId,/\/\/ @ts-expect-error legacy field\n        drive_file_id: (result as any).driveFileId,/g
+" -i server/routes/google-export.ts
+
+echo "✅ google-export.ts legacy-field casts applied"
+
+
+⸻
+
+22.11 — Typecheck + focused grep
+
+npm run typecheck || true
+
+echo "—— Focus check after pack 2 — should be clear or reduced:"
+rg -n 'node-cron|pdf-parse|@mozilla/readability|google\\/drive\\.ts|google\\/slides\\.ts|google-export|captures\\.ts|scheduler\\.ts|cache\\.ts|pipeline\\.ts' || true
+
+Report back to me with:
+	1.	The new total TS error count (from npm run typecheck output).
+	2.	Any remaining server-side errors mentioning:
+	•	server/services/google/drive.ts
+	•	server/services/google/slides.ts
+	•	server/services/scheduler.ts
+	•	server/routes/google-export.ts
+	•	server/routes/captures.ts
+	•	server/lib/cache.ts
+	•	server/workers/analysis/pipeline.ts
+
+Then STOP and wait.

@@ -60,18 +60,18 @@ export class GoogleSlidesService {
       const slides = google.slides({ version: 'v1', auth: oauth2Client });
 
       // Create new presentation
-      const presentation = await slides.presentations.create({
+      const presentation = await (slides.presentations.create as any)({
         requestBody: {
           title: title,
         },
       });
 
-      const presentationId = presentation.data.presentationId!;
+      const presentationId = (presentation as any).data.presentationId!;
       console.log(`Created presentation: ${title} (${presentationId})`);
 
       // Move to project folder
       const drive = google.drive({ version: 'v3', auth: oauth2Client });
-      await drive.files.update({
+      await (drive.files.update as any)({
         fileId: presentationId,
         addParents: folderId,
         fields: 'id, parents',
@@ -88,7 +88,7 @@ export class GoogleSlidesService {
           presentationId: presentationId,
         });
         
-        const defaultSlideId = presentationData.data.slides?.[0]?.objectId;
+        const defaultSlideId = (presentationData as any).data.slides?.[0]?.objectId;
 
         for (let i = 0; i < canvasJson.slides.length; i++) {
           const slide = canvasJson.slides[i];
@@ -216,7 +216,7 @@ export class GoogleSlidesService {
       // Execute batch update if we have requests
       if (requests.length > 0) {
         console.log(`Executing ${requests.length} slide operations...`);
-        await slides.presentations.batchUpdate({
+        await (slides.presentations.batchUpdate as any)({
           presentationId: presentationId,
           requestBody: {
             requests: requests,
