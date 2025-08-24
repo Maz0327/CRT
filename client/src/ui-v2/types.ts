@@ -40,7 +40,7 @@ export interface Brief {
   status?: string | null;
   created_at?: string;
   updated_at?: string;
-  slides?: any[];
+  slides: Slide[];
   slideCount?: number;
 }
 
@@ -54,7 +54,7 @@ export interface Slide {
   title?: string;
   order_index: number;
   blocks: any[];
-  captureRefs?: string[];
+  captureRefs?: any[];
 }
 
 export interface UserFeed {
@@ -101,17 +101,6 @@ export interface Block {
   w?: number;
   h?: number;
   sourceCaptureId?: string;
-}
-
-export interface Moment {
-  id: ID;
-  title: string;
-  description: string;
-  intensity: number;
-  tags: string[];
-  platforms: string[];
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Moment {

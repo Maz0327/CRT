@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface PopoverMenuProps {
   trigger: ReactNode;
   children: ReactNode;
-  align?: string;
+  align?: 'left' | 'right' | 'center';
 }
 
 export function PopoverMenu({ trigger, children }: PopoverMenuProps) {
@@ -52,7 +52,9 @@ export function PopoverMenuItem({ children, onClick, icon, destructive }: Popove
   return (
     <button
       onClick={onClick}
-      className="w-full px-4 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2 text-ink"
+      className={`w-full px-4 py-2 text-left hover:bg-white/5 transition-colors flex items-center gap-2 ${
+        destructive ? 'text-red-400 hover:text-red-300' : 'text-ink'
+      }`}
     >
       {icon && <div className="flex-shrink-0">{icon}</div>}
       <span>{children}</span>
