@@ -312,7 +312,7 @@ export class GoogleCustomSearchService {
   }
 
   private generateSearchInsights(item: any): string[] {
-    const insights = [];
+    const insights: string[] = [];
     const content = `${item.title} ${item.snippet}`.toLowerCase();
     
     if (content.includes('viral') || content.includes('trending')) {
@@ -366,7 +366,7 @@ export class GoogleCustomSearchService {
   }
 
   private extractCampaignInsights(snippet: string): string[] {
-    const insights = [];
+    const insights: string[] = [];
     const content = snippet.toLowerCase();
     
     if (content.includes('launch')) insights.push('Product/campaign launch detected');

@@ -20,7 +20,7 @@ export function buildApiRouter() {
   setupSettingsRoutes(router as any);
   setupAnnotationsRoutes(router as any);
   setupAnalyticsRoutes(router as any);
-  registerTruthRoutes(router as any);
+  router.use("/truth", registerTruthRoutes);
   router.use("/search", searchRouter);
 
   return router;

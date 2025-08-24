@@ -71,7 +71,7 @@ export class GoogleDocsService {
   }
 
   private buildDocumentRequests(briefData: any) {
-    const requests = [];
+    const requests: any[] = [];
     let index = 1;
 
     // Title

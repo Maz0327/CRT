@@ -87,7 +87,7 @@ async function callCaptionProvider(input: ProviderCaptionInput) {
   try {
     const { completeJSON } = await import('../../services/ai'); // you likely have something similar; otherwise implement minimal
     const result = await completeJSON({
-      provider: process.env.MEDIA_PROVIDER || 'google',
+      provider: (process.env.MEDIA_PROVIDER as "google" | "openai" | "mock") || 'google',
       system: 'Return ONLY valid JSON object with a single "summary" string.',
       user: prompt,
       schema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'] }

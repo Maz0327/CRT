@@ -108,7 +108,7 @@ export class GoogleVisionService {
   }
 
   private generateStrategicInsights(analysis: any): string[] {
-    const insights = [];
+    const insights: string[] = [];
 
     // Brand presence insights
     if (analysis.brandElements.length > 0) {

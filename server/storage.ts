@@ -579,8 +579,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateProject(id: string, updates: Partial<InsertProject>): Promise<Project> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       if (updates.name !== undefined) {
@@ -1924,8 +1924,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateCapture(id: string, updates: Partial<InsertCapture>): Promise<Capture> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       // Map frontend field names to database columns
@@ -2204,8 +2204,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateContentItem(id: string, updates: Partial<InsertContentRadar>): Promise<ContentRadar> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {
@@ -2479,8 +2479,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateClientProfile(id: string, updates: Partial<InsertClientProfile>): Promise<ClientProfile> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {
@@ -2667,8 +2667,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateDsdBrief(id: string, updates: Partial<InsertDsdBrief>): Promise<DsdBrief> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {
@@ -2810,8 +2810,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateCollectivePattern(id: string, updates: Partial<InsertCollectivePattern>): Promise<CollectivePattern> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {
@@ -2948,8 +2948,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateCulturalMoment(id: string, updates: Partial<InsertCulturalMoment>): Promise<CulturalMoment> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {
@@ -3072,8 +3072,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateHypothesisValidation(id: string, updates: Partial<InsertHypothesisValidation>): Promise<HypothesisValidation> {
     try {
-      const fields = [];
-      const values = [];
+      const fields: string[] = [];
+      const values: any[] = [];
       let paramCount = 1;
 
       const fieldMap: Record<string, string> = {

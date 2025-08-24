@@ -199,7 +199,7 @@ export class LiveBrightDataService {
 
       // Extract post data with multiple strategies
       const posts = await page.evaluate((limit: number) => {
-        const results = [];
+        const results: any[] = [];
         
         // Try multiple selectors
         const selectors = [
@@ -299,7 +299,7 @@ export class LiveBrightDataService {
       // Extract tweet data
       const tweets = await page.evaluate((limit: number) => {
         const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
-        const results = [];
+        const results: any[] = [];
 
         for (let i = 0; i < Math.min(tweetElements.length, limit); i++) {
           const tweet = tweetElements[i];
@@ -350,7 +350,7 @@ export class LiveBrightDataService {
       // Extract post data
       const posts = await page.evaluate((limit: number) => {
         const postElements = document.querySelectorAll('article');
-        const results = [];
+        const results: any[] = [];
 
         for (let i = 0; i < Math.min(postElements.length, limit); i++) {
           const post = postElements[i];
@@ -400,7 +400,7 @@ export class LiveBrightDataService {
       // Extract post data
       const posts = await page.evaluate((limit: number) => {
         const postElements = document.querySelectorAll('[data-testid="post-container"]');
-        const results = [];
+        const results: any[] = [];
 
         for (let i = 0; i < Math.min(postElements.length, limit); i++) {
           const post = postElements[i];
@@ -451,7 +451,7 @@ export class LiveBrightDataService {
       // Extract video data
       const videos = await page.evaluate((limit: number) => {
         const videoElements = document.querySelectorAll('#video-title');
-        const results = [];
+        const results: any[] = [];
 
         for (let i = 0; i < Math.min(videoElements.length, limit); i++) {
           const video = videoElements[i];
@@ -546,7 +546,7 @@ export class LiveBrightDataService {
    */
   private generateEnhancedDemo(platform: string, keywords: string[], limit: number): any[] {
     const keywordText = keywords.length > 0 ? keywords.join(', ') : 'trending topics';
-    const results = [];
+    const results: any[] = [];
 
     console.log(`[Live Bright Data] Generating fallback demo data for ${platform} (live scraping failed)`);
 
