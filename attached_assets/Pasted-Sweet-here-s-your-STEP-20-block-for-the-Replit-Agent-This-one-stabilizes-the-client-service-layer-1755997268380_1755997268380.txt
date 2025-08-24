@@ -1,0 +1,235 @@
+Sweet — here’s your STEP 20 block for the Replit Agent. This one stabilizes the client service layer and removes several “missing module / bad import” errors by adding a typed API helper, swapping the auth hook to your new context, stubbing realtime/storage, fixing the updateStatus call sites, and exporting a createTruthCheck. It ends with a typecheck + short report.
+
+⸻
+
+Agent instructions — STEP 20 (API helper + client fixes)
+
+Goal:
+	•	Add a typed api wrapper (get/post/patch/...) used by UI-v2 services.
+	•	Point use-auth to the new AuthContext.
+	•	Stub missing realtime/storage modules.
+	•	Fix CapturesInboxPage’s wrong updateStatus calls.
+	•	Ensure truth.ts exports createTruthCheck.
+	•	Re-run typecheck and report.
+
+If any path doesn’t exist, STOP and show the tree for that folder.
+
+⸻
+
+20.1 — Add a typed API helper
+
+Create/overwrite client/src/lib/api.ts:
+
+// client/src/lib/api.ts
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
+const BASE =
+  import.meta.env.VITE_API_BASE ||
+  import.meta.env.VITE_API_URL ||
+  '/api';
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const url = path.startsWith('http') ? path : `${BASE}${path}`;
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`API ${init.method || 'GET'} ${url} failed: ${res.status} ${text}`);
+  }
+  // allow empty responses
+  if (res.status === 204) return undefined as unknown as T;
+  return (await res.json().catch(() => ({}))) as T;
+}
+
+function get<T>(path: string) { return request<T>(path, { method: 'GET' }); }
+function post<T>(path: string, body?: unknown) { return request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }); }
+function patch<T>(path: string, body?: unknown) { return request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }); }
+function put<T>(path: string, body?: unknown) { return request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }); }
+function del<T>(path: string) { return request<T>(path, { method: 'DELETE' }); }
+
+export const api = { request, get, post, patch, put, del };
+export default api;
+
+Verify:
+test -f client/src/lib/api.ts && echo "✅ api helper created" || echo "❌ api helper missing"
+
+⸻
+
+20.2 — Point use-auth to your new Auth context
+
+Create/overwrite client/src/hooks/use-auth.tsx:
+
+// client/src/hooks/use-auth.tsx
+export { useAuth as useSupabaseAuth, AuthProvider as SupabaseAuthProvider } from '@/context/AuthContext';
+
+Verify:
+test -f client/src/hooks/use-auth.tsx && echo "✅ use-auth shim ok" || echo "❌ use-auth shim missing"
+
+⸻
+
+20.3 — Stub realtime + storage (no-ops, compile only)
+
+Create/overwrite client/src/services/supabase-realtime.ts:
+
+// client/src/services/supabase-realtime.ts
+type Handler<T = any> = (payload: T) => void;
+type Off = () => void;
+
+class RealtimeService {
+  on<T = any>(_channel: string, _event: string, _handler: Handler<T>): Off {
+    return () => {};
+  }
+  emit<T = any>(_channel: string, _event: string, _payload: T) {}
+}
+export const realtimeService = new RealtimeService();
+
+Create/overwrite client/src/services/supabase-storage.ts:
+
+// client/src/services/supabase-storage.ts
+export const storageService = {
+  async upload(_path: string, _blob: Blob | File) {
+    return { url: '', path: _path };
+  },
+  async getPublicUrl(_path: string) {
+    return { url: '' };
+  },
+  async remove(_path: string) {
+    return { success: true };
+  }
+};
+
+Verify:
+test -f client/src/services/supabase-realtime.ts -a -f client/src/services/supabase-storage.ts && echo "✅ realtime/storage stubs ok" || echo "❌ realtime/storage stubs missing"
+
+⸻
+
+20.4 — Fix UI services to use the API helper
+
+Patch client/src/ui-v2/services/moments.ts to import api and use api.get/patch:
+
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: client/src/ui-v2/services/moments.ts
+@@
+-// import whatever existed before
++import api from '@/lib/api';
++import type { ID } from '../types';
++export type Moment = { id: ID; [k: string]: any };
+@@
+-    return api.get<Moment[]>(`/moments?${searchParams}`);
++    return api.get<Moment[]>(`/moments?${searchParams}`);
+@@
+-    return api.get<Moment>(`/moments/${id}`);
++    return api.get<Moment>(`/moments/${id}`);
+@@
+-    return api.patch<Moment>(`/moments/${id}`, data);
++    return api.patch<Moment>(`/moments/${id}`, data);
+*** End Patch
+PATCH
+
+Patch client/src/ui-v2/services/projects.ts similarly:
+
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: client/src/ui-v2/services/projects.ts
+@@
+-import api from '../../lib/api';
++import api from '@/lib/api';
++export type Project = { id: string; name: string; [k: string]: any };
+@@
+-  return api.get('/projects').then(res => res.rows || res.data || []);
++  return api.get<Project[]>('/projects').then((res: any) => res?.rows || res?.data || res || []);
+*** End Patch
+PATCH
+
+If applypatch isn’t available, STOP and tell me, and we’ll switch to ed/sed commands.
+
+⸻
+
+20.5 — Provide a minimal jobs service (used by useBrief)
+
+Create client/src/ui-v2/services/jobs.ts:
+
+// client/src/ui-v2/services/jobs.ts
+import api from '@/lib/api';
+
+export type Job = { id: string; status: 'pending'|'running'|'done'|'error'; result?: any; error?: string };
+
+export const jobsService = {
+  async get(id: string) {
+    return api.get<Job>(`/jobs/${id}`).catch(() => ({ id, status: 'done' } as Job));
+  }
+};
+
+Verify:
+test -f client/src/ui-v2/services/jobs.ts && echo "✅ jobs service ok" || echo "❌ jobs service missing"
+
+⸻
+
+20.6 — Make createTruthCheck available
+
+Append (or create if missing) in client/src/ui-v2/services/truth.ts:
+
+grep -q "export function createTruthCheck" client/src/ui-v2/services/truth.ts || cat >> client/src/ui-v2/services/truth.ts <<'TS'
+
+export async function createTruthCheck(input: { url?: string; text?: string }) {
+  const res = await fetch('/api/truth/checks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error('Failed to create truth check');
+  return res.json();
+}
+TS
+echo "✅ ensured createTruthCheck export"
+
+
+⸻
+
+20.7 — Fix CapturesInboxPage bad calls to updateStatus
+
+Convert calls like updateStatus({ id: capture.id, status: 'keep' }) → updateStatus(capture.id, 'keep').
+
+perl -0777 -pe "s/updateStatus\(\s*{[^}]*id:\s*([a-zA-Z0-9_\.]+)\s*,\s*status:\s*'new'\s*}\s*\)/updateStatus($1, 'new')/g" -i client/src/ui-v2/pages/CapturesInboxPage.tsx
+perl -0777 -pe "s/updateStatus\(\s*{[^}]*id:\s*([a-zA-Z0-9_\.]+)\s*,\s*status:\s*'keep'\s*}\s*\)/updateStatus($1, 'keep')/g" -i client/src/ui-v2/pages/CapturesInboxPage.tsx
+perl -0777 -pe "s/updateStatus\(\s*{[^}]*id:\s*([a-zA-Z0-9_\.]+)\s*,\s*status:\s*'trash'\s*}\s*\)/updateStatus($1, 'trash')/g" -i client/src/ui-v2/pages/CapturesInboxPage.tsx
+echo "✅ normalized updateStatus() call sites"
+
+
+⸻
+
+20.8 — Type shims for missing server-side libs (compile only)
+
+Create/append server/types/shims.d.ts:
+
+mkdir -p server/types
+cat > server/types/shims.d.ts <<'TS'
+declare module 'pdf-parse';
+declare module '@mozilla/readability';
+declare module 'node-cron';
+TS
+echo "✅ server type shims added"
+
+
+⸻
+
+20.9 — Quick typecheck
+
+npm run typecheck || true
+
+Report back:
+	•	New total TS error count.
+	•	Whether these specific ones are gone:
+	•	client/src/hooks/use-auth.tsx
+	•	client/src/ui-v2/services/moments.ts
+	•	client/src/ui-v2/services/projects.ts
+	•	client/src/ui-v2/components/truth/TruthTabs.tsx (re: createTruthCheck)
+	•	client/src/ui-v2/pages/CapturesInboxPage.tsx (re: updateStatus)
+	•	Missing module errors for supabase-realtime and supabase-storage.
+	•	Any files that still complain with “Cannot find module …” — list them.
+	•	Then STOP and wait for my next instructions.
