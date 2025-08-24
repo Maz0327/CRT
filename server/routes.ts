@@ -173,6 +173,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(capturesUpload);
   app.use("/api/truth", truthRouter);
 
+  // Truth API Compatibility Routes (legacy /api/truth_checks/* → /api/truth/*)
+  const registerTruthCompat = (await import("./routes/compat-truth")).default;
+  registerTruthCompat(app);
+
   // Media Analysis router
   const mediaAnalysisRouter = (await import("./routes/media-analysis")).default;
   app.use("/api/analysis", mediaAnalysisRouter);
