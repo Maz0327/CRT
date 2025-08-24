@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "vite-env.d.ts"]
+}

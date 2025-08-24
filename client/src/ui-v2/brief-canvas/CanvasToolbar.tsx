@@ -41,12 +41,11 @@ export function CanvasToolbar() {
       type: 'text',
       x: 100,
       y: 100,
-      w: 200,
-      h: 50,
+            h: 50,
       text: 'Click to edit text',
       align: 'left',
       fontSize: 16,
-      weight: 400,
+      weight: "400",
     });
   };
 
@@ -55,8 +54,7 @@ export function CanvasToolbar() {
       type: 'image',
       x: 100,
       y: 100,
-      w: 200,
-      h: 150,
+            h: 150,
       src: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=200&h=150&fit=crop',
       alt: 'Placeholder image',
     });
@@ -67,8 +65,7 @@ export function CanvasToolbar() {
       type: 'note',
       x: 100,
       y: 100,
-      w: 150,
-      h: 100,
+            h: 100,
       text: 'Add your note here...',
     });
   };

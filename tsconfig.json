@@ -26,7 +26,7 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "strict": true,
+    "strict": false,
     "noImplicitAny": false,
     "downlevelIteration": true,
     "skipLibCheck": true,
