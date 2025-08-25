@@ -10,7 +10,9 @@
     "build": "vite build",
     "dev": "concurrently \"vite --host --port 5175 --force\" \"PORT=5001 NODE_ENV=development tsx server/index.ts\"",
     "test": "vitest run",
-    "start": "NODE_ENV=production PORT=5001 tsx server/index.ts"
+    "start": "NODE_ENV=production PORT=5001 tsx server/index.ts",
+    "dev:ui": "vite --host --port 5175 --force",
+    "dev:api": "PORT=5001 NODE_ENV=development tsx server/index.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

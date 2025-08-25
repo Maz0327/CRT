@@ -1,0 +1,228 @@
+# ======================
+# 0) Stop anything running
+# ======================
+pkill -f "vite|tsx server/index.ts" 2>/dev/null || true
+mkdir -p artifacts
+
+# ======================
+# 1) Ensure the client app has a proper Vite entry
+#    (only creates index.html if missing)
+# ======================
+mkdir -p client/src
+if [ ! -f client/index.html ]; then
+  cat > client/index.html <<'HTML'
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CRT Creative Strat</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Vite dev will load /src/main.tsx; in prod this is bundled -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+HTML
+  echo "✅ Created client/index.html"
+else
+  echo "ℹ️ client/index.html already exists"
+fi
+
+# ======================
+# 2) Write a clean Vite config:
+#    - root = client
+#    - outDir = client/dist
+#    - proxy /api -> http://localhost:5001
+#    - '@' alias -> client/src
+# ======================
+cat > vite.config.ts <<'TS'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+export default defineConfig({
+  root: path.resolve(__dirname, "client"),
+  plugins: [react()],
+  resolve: { alias: { "@": path.resolve(__dirname, "client/src") } },
+  server: {
+    host: true,
+    port: 5175,
+    strictPort: false, // if 5175 is busy, Vite will pick another; Replit maps this to 3000
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, "")
+      }
+    }
+  },
+  build: {
+    outDir: path.resolve(__dirname, "client/dist"),
+    emptyOutDir: true,
+    sourcemap: true,
+    chunkSizeWarningLimit: 800
+  }
+});
+TS
+echo "✅ Wrote vite.config.ts (root=client, outDir=client/dist)"
+
+# ======================
+# 3) Production static mounting: server/prod-frontend.ts
+#    - Serves client/dist in production
+#    - SPA fallback for non-/api routes
+# ======================
+mkdir -p server
+cat > server/prod-frontend.ts <<'TS'
+import type { Express } from "express";
+import express from "express";
+import path from "path";
+import fs from "fs";
+
+export default function mountProdFrontend(app: Express) {
+  // Resolve from project root in both tsx-run and compiled modes
+  const DIST_DIR = path.resolve(process.cwd(), "client/dist");
+  const INDEX_HTML = path.join(DIST_DIR, "index.html");
+
+  if (!fs.existsSync(INDEX_HTML)) {
+    console.warn("[prod-frontend] index.html not found at", INDEX_HTML);
+    return;
+  }
+
+  app.use(express.static(DIST_DIR, { index: false, fallthrough: true }));
+
+  // SPA fallback: any non-API route serves index.html
+  app.get("*", (req, res, next) => {
+    if (req.url.startsWith("/api/")) return next();
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(INDEX_HTML);
+  });
+
+  console.log("[prod-frontend] serving static from", DIST_DIR);
+}
+TS
+echo "✅ Wrote server/prod-frontend.ts"
+
+# ======================
+# 4) Ensure health route exists (server/health.ts) and is mounted
+#    (idempotent: only writes if missing)
+# ======================
+if [ ! -f server/health.ts ]; then
+  cat > server/health.ts <<'TS'
+import type { Express, Request, Response } from "express";
+
+export default function mountHealth(app: Express) {
+  app.get("/healthz", (_req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      environment: process.env.NODE_ENV || "development"
+    });
+  });
+}
+TS
+  echo "✅ Wrote server/health.ts"
+else
+  echo "ℹ️ server/health.ts already exists"
+fi
+
+# ======================
+# 5) Make server/index.ts API-only in dev, static only in prod
+#    - Remove any dev-time attempt to serve /client files
+#    - Mount prod-frontend only when NODE_ENV=production
+#    - Ensure health is mounted
+# ======================
+# --- Add imports if missing ---
+if ! rg -nq 'from "./health"' server/index.ts; then
+  sed -i '1i import mountHealth from "./health";' server/index.ts
+fi
+if ! rg -nq 'from "./prod-frontend"' server/index.ts; then
+  sed -i '1i import mountProdFrontend from "./prod-frontend";' server/index.ts
+fi
+
+# --- Mount health if not present ---
+if ! rg -nq 'mountHealth\(' server/index.ts; then
+  sed -i '1h;1!H;$!d; ${x;s/$/\n\n//;p;}; $a mountHealth(app);' server/index.ts
+fi
+
+# --- Guard production static serving only in prod ---
+# Remove any lines that mention serving client files directly in dev
+# (common patterns: express.static(...client...), "serving client files")
+sed -i '/serving client files from/d' server/index.ts
+sed -i '/express\.static(.*client.*)/d' server/index.ts
+
+# Add the production mount at the end if absent
+if ! rg -nq 'mountProdFrontend\(app\)' server/index.ts; then
+  cat >> server/index.ts <<'TS'
+
+/** Frontend mount (production only) */
+if (process.env.NODE_ENV === "production") {
+  mountProdFrontend(app);
+} else {
+  console.log("[server] dev mode: frontend served by Vite on :5175 (Replit 3000); API on :5001 (Replit 3001)");
+}
+TS
+fi
+echo "✅ Updated server/index.ts (dev=API-only, prod=serve client/dist)"
+
+# ======================
+# 6) Scripts for predictable dev/prod
+# ======================
+npm pkg set scripts.dev='concurrently "vite --host --port 5175 --force" "PORT=5001 NODE_ENV=development tsx server/index.ts"'
+npm pkg set scripts.dev:ui='vite --host --port 5175 --force'
+npm pkg set scripts.dev:api='PORT=5001 NODE_ENV=development tsx server/index.ts'
+npm pkg set scripts.build='vite build'
+npm pkg set scripts.start='NODE_ENV=production PORT=5001 tsx server/index.ts'
+echo "✅ Standardized npm scripts"
+
+# ======================
+# 7) Replit run command (keeps preview focused on Vite)
+# ======================
+cat > .replit <<'TXT'
+run = "npm run dev"
+TXT
+echo "✅ Wrote .replit (run = npm run dev)"
+
+# ======================
+# 8) Smoke test: API first
+# ======================
+PORT=5001 NODE_ENV=development tsx server/index.ts \
+  > artifacts/api-$(date +%s).log 2>&1 & echo $! > /tmp/api.pid
+sleep 2
+if curl -sSf http://localhost:5001/healthz >/dev/null; then
+  echo "✅ API up on :5001"
+else
+  echo "❌ API failed. Last 100 lines:"; tail -n 100 artifacts/api-*.log; exit 1;
+fi
+
+# ======================
+# 9) Smoke test: Vite dev + proxy
+# ======================
+vite --host --port 5175 --force \
+  > artifacts/vite-$(date +%s).log 2>&1 & echo $! > /tmp/vite.pid
+sleep 2
+
+# UI index
+if curl -sSf http://localhost:5175/ >/dev/null; then
+  echo "✅ Vite UI up on :5175 (Replit shows it as 3000)"
+else
+  echo "❌ Vite failed. Last 80 lines:"; tail -n 80 artifacts/vite-*.log; exit 1;
+fi
+
+# Proxy to API
+if curl -sSf http://localhost:5175/api/healthz >/dev/null; then
+  echo "✅ Vite → API proxy works"
+else
+  echo "❌ Proxy failed. Last 80 lines:"; tail -n 80 artifacts/vite-*.log; exit 1;
+fi
+
+# ======================
+# 10) Clean up background processes
+# ======================
+kill "$(cat /tmp/vite.pid)" 2>/dev/null || true
+kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+rm -f /tmp/vite.pid /tmp/api.pid
+
+echo "🎉 Fix Pack applied successfully."

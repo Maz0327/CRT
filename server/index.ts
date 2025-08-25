@@ -346,3 +346,13 @@ if (process.env.NODE_ENV === "production") { mountProdFrontend(app); }
 })();
 
 export default app;
+
+// --- DEV: force-remove static client serving (use Vite instead) ---
+if (process.env.NODE_ENV !== "production") {
+  // @ts-ignore
+  const s = (app as any)._router?.stack as any[] | undefined;
+  if (Array.isArray(s)) {
+    (app as any)._router.stack = s.filter((layer: any) => !layer?.handle?.name?.includes("serveStatic"));
+    console.log("[server] dev mode: disabled express.static(client). Use Vite on 5175");
+  }
+}
