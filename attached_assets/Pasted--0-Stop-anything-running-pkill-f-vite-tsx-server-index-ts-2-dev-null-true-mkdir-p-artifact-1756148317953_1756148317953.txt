@@ -1,0 +1,147 @@
+# 0) Stop anything running
+pkill -f "vite|tsx server/index.ts" 2>/dev/null || true
+mkdir -p artifacts
+
+###############################################################################
+# 1) Ensure Express does NOT serve the frontend in development
+#    We guard inside server/prod-frontend.ts so even if it's called in dev, it no-ops.
+###############################################################################
+cat > server/prod-frontend.ts <<'TS'
+import path from "path";
+import express, { Express } from "express";
+import fs from "fs";
+
+export default function mountProdFrontend(app: Express) {
+  const isProd = process.env.NODE_ENV === "production";
+  if (!isProd) {
+    console.log("[server] dev mode — not serving static frontend");
+    return; // <- IMPORTANT: do nothing in dev
+  }
+
+  // In production, serve the built client app (client/dist)
+  const rootDir = path.resolve(__dirname, "..");           // /server -> repo root
+  const distDir = path.resolve(rootDir, "client", "dist");  // /client/dist
+
+  if (!fs.existsSync(distDir)) {
+    console.warn(`[server] WARN: ${distDir} not found. Build the client first (npm run build).`);
+  } else {
+    app.use(express.static(distDir));
+    app.get("*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+    console.log(`[server] serving static files from ${distDir}`);
+  }
+}
+TS
+echo "✅ server/prod-frontend.ts guarded (no static serve in dev)"
+
+###############################################################################
+# 2) Double-check server/index.ts only mounts prod frontend in production
+###############################################################################
+# This is safe even if it already matches; we just ensure the correct block is present.
+if ! grep -q 'if (process.env.NODE_ENV === "production")' server/index.ts; then
+  # Append guarded call at end if not present.
+  cat >> server/index.ts <<'TS'
+
+// --- Ensure prod-only frontend mount ---
+import mountProdFrontend from "./prod-frontend";
+if (process.env.NODE_ENV === "production") {
+  mountProdFrontend(app);
+}
+TS
+  echo "✅ Ensured production-only mount in server/index.ts"
+else
+  echo "ℹ️ server/index.ts already has production-only mount"
+fi
+
+###############################################################################
+# 3) Vite config: root=client, proxy to API:5001, allow Replit host, WSS HMR
+###############################################################################
+# Set WORF_HOST to your current Preview host (adjust if it ever changes)
+export WORF_HOST="${WORF_HOST:-60011746-76d1-4a07-8b52-69bb642792b8-00-7v62f6wvgff1.worf.replit.dev}"
+
+cat > vite.config.ts <<TS
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+
+const worfHost = process.env.WORF_HOST || "${WORF_HOST}";
+
+export default defineConfig({
+  root: path.resolve(__dirname, "client"),
+  plugins: [react()],
+  resolve: { alias: { "@": path.resolve(__dirname, "client/src") } },
+  server: {
+    host: true,
+    port: 5175,
+    strictPort: false,
+    allowedHosts: [worfHost, "localhost", "127.0.0.1"],
+    hmr: { host: worfHost, protocol: "wss", clientPort: 443 },
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, "")
+      }
+    }
+  },
+  build: {
+    outDir: path.resolve(__dirname, "client/dist"),
+    emptyOutDir: true,
+    sourcemap: true,
+    chunkSizeWarningLimit: 800
+  }
+});
+TS
+echo "✅ vite.config.ts updated"
+
+###############################################################################
+# 4) Clean any stale Vite cache
+###############################################################################
+rm -rf node_modules/.vite 2>/dev/null || true
+echo "🧹 Cleaned Vite cache"
+
+###############################################################################
+# 5) Start API alone → must NOT serve /
+###############################################################################
+PORT=5001 NODE_ENV=development tsx server/index.ts \
+  > artifacts/api-only-$(date +%s).log 2>&1 & echo $! > /tmp/api.pid
+sleep 1
+
+# /healthz should be 200 OK
+curl -sSf http://localhost:5001/healthz > /dev/null && echo "✅ API /healthz OK" || {
+  echo "❌ API /healthz failed"; tail -n 100 artifacts/api-only-*.log; exit 1;
+}
+
+# / should be NOT found (404/500) because API must NOT serve the app in dev
+API_ROOT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/)
+echo "ℹ️ API GET / status: $API_ROOT_STATUS"
+if [ "$API_ROOT_STATUS" = "200" ]; then
+  echo "❌ API is serving / in dev (should not). Check server/prod-frontend.ts guard."; exit 1;
+fi
+
+###############################################################################
+# 6) Start Vite dev on 5175 → must serve index HTML
+###############################################################################
+vite --host --port 5175 --force \
+  > artifacts/vite-only-$(date +%s).log 2>&1 & echo $! > /tmp/vite.pid
+sleep 1
+
+# index html should load from Vite
+curl -sSf http://localhost:5175/ | head -n1 | grep -qi "<!doctype html" && \
+  echo "✅ Vite index HTML OK" || {
+  echo "❌ Vite index failed — last 100 lines:"; tail -n 100 artifacts/vite-only-*.log; exit 1;
+}
+
+# Vite dev client should be reachable
+curl -sSfo /dev/null http://localhost:5175/@vite/client && echo "✅ @vite/client reachable" || {
+  echo "❌ @vite/client missing — last 100 lines:"; tail -n 100 artifacts/vite-only-*.log; exit 1;
+}
+
+echo "🎯 Open the Replit Preview on **port 3000** (Vite). Do NOT open port 3001."
+echo "   If the Preview host changed, run: export WORF_HOST=\"<new-worf-host>\" && npm run dev"
+
+###############################################################################
+# 7) Stop the one-off servers, resume normal dev (optional)
+###############################################################################
+kill "$(cat /tmp/vite.pid)" 2>/dev/null || true
+kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+npm run dev

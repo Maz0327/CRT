@@ -12,14 +12,8 @@ export default defineConfig({
     host: true,
     port: 5175,
     strictPort: false,
-    // Explicitly allow your Replit preview host (prevents "Blocked request" error)
     allowedHosts: [worfHost, "localhost", "127.0.0.1"],
-    // Make HMR connect over WSS to your Replit host so hot-reload works reliably
-    hmr: {
-      host: worfHost,
-      protocol: "wss",
-      clientPort: 443
-    },
+    hmr: { host: worfHost, protocol: "wss", clientPort: 443 },
     proxy: {
       "/api": {
         target: "http://localhost:5001",
