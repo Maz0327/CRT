@@ -316,13 +316,15 @@ app.use((req, res, next) => {
       }
     });
   } else {
-    console.log(`[server] dev mode: client files handled by Vite on port 5175`);
+    console.log(`[server] dev mode: proxying frontend requests to Vite on port 5175`);
     // In development, proxy non-API requests to Vite dev server
-    app.use("*", (req, res) => {
-      if (!req.path.startsWith("/api")) {
-        return res.redirect(`http://localhost:5175${req.path}`);
+    app.use("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next(); // Let API routes handle themselves
       }
-      res.status(404).json({ error: "Route not found" });
+      // Proxy to Vite dev server
+      const viteUrl = `http://localhost:5175${req.url}`;
+      return res.redirect(302, viteUrl);
     });
   }
 
@@ -345,7 +347,7 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  // Force port 5000 in development mode for workflow compatibility
+  // In development, force port 5000 for workflow compatibility
   const port = process.env.NODE_ENV === "development" ? 5000 : parseInt(process.env.PORT || "5000", 10);
   
 mountHealth(app);
@@ -353,13 +355,6 @@ if (process.env.NODE_ENV === "production") { mountProdFrontend(app); }
   app.listen(port, "0.0.0.0", () => {
     console.log(`[server] listening on ${port} (NODE_ENV=${process.env.NODE_ENV})`);
   });
-
-  // In development, also listen on port 5001 for Vite proxy compatibility
-  if (process.env.NODE_ENV === "development" && port === 5000) {
-    app.listen(5001, "0.0.0.0", () => {
-      console.log(`[server] also listening on 5001 for Vite proxy compatibility`);
-    });
-  }
 })();
 
 export default app;
