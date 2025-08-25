@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetClose } from '../../../componen
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { PopoverMenu, PopoverMenuItem } from '../primitives/PopoverMenu';
 import { useAuth } from '../../hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn } from '../../../lib/utils';
 import { ThemeToggle } from '../primitives/ThemeToggle';
 
 const navItems = [

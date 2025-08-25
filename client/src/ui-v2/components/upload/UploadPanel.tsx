@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import { FileDrop } from './FileDrop';
 import { FileRow } from './FileRow';
-import { cn } from '@/lib/utils';
+import { cn } from '../../../lib/utils';
 import { uploadCaptures } from '../../services/captures';
 
 interface FileWithMetadata {

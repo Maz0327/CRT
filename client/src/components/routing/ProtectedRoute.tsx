@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useSupabaseUser } from "@/hooks/useSupabaseUser";
+import { useSupabaseUser } from "../hooks/useSupabaseUser";
 import { useEffect } from "react";
 
 interface ProtectedRouteProps {

@@ -1,5 +1,5 @@
 // client/src/ui-v2/services/projects.ts
-import api from '@/lib/api';
+import api from '../../lib/api';
 
 export interface Project {
   id: string;

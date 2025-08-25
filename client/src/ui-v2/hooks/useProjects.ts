@@ -1,6 +1,6 @@
 // client/src/ui-v2/hooks/useProjects.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createProject as svcCreate, deleteProject as svcDelete, listProjects, updateProject as svcUpdate, Project } from '@/ui-v2/services/projects';
+import { createProject as svcCreate, deleteProject as svcDelete, listProjects, updateProject as svcUpdate, Project } from '../services/projects';
 
 export function useProjects() {
   const qc = useQueryClient();

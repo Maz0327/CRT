@@ -1,5 +1,5 @@
 // client/src/ui-v2/services/jobs.ts
-import api from '@/lib/api';
+import api from '../../lib/api';
 
 export type Job = { id: string; status: 'pending'|'running'|'done'|'error'; result?: any; error?: string };
 

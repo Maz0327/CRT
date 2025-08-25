@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { FadeIn } from "@/components/ui/fade-in";
+import { FadeIn } from "../components/ui/fade-in";
 
 interface PageLayoutProps {
   children: ReactNode;

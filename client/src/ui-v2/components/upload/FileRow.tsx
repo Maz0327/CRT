@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Image, File, X, Edit3 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../../lib/utils';
 
 interface FileRowProps {
   file: File;

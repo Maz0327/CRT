@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import { useCanvasStore } from './useCanvasStore';
 import { BlockText } from './BlockText';
 import { BlockImage } from './BlockImage';

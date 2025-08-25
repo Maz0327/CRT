@@ -1,7 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { TrendingUp, Flame, Globe, Star, Brain, Target } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { FadeIn, StaggeredFadeIn } from "@/components/ui/fade-in";
+import { Skeleton } from "../components/ui/skeleton";
+import { FadeIn, StaggeredFadeIn } from "../components/ui/fade-in";
 
 import type { DashboardStats } from '@/types/dashboard';
 

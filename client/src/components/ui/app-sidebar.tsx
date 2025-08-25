@@ -26,7 +26,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
+} from "../components/ui/sidebar"
 
 const mainItems = [
   { title: "Today's Briefing", url: "/", icon: Activity },

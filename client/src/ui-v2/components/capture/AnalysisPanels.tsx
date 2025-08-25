@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCaptureShots, useCaptureCaptions, useSimilarCaptures, useCaptureTranscript } from '../../hooks/useCaptureAnalysis';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '../../../components/ui/skeleton';
 
 export function ShotsPanel({ captureId }: { captureId: string }) {
   const { data, isLoading } = useCaptureShots(captureId);

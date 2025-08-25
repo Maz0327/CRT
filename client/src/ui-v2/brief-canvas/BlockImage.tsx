@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import { Block } from './types';
 import { useCanvasStore } from './useCanvasStore';
 import { ExternalLink } from 'lucide-react';

@@ -2,7 +2,7 @@ import React from 'react';
 import { Calendar, ExternalLink, Image, FileText, Type } from 'lucide-react';
 import { VerdictBadge } from './VerdictBadge';
 import { ConfidenceBar } from './ConfidenceBar';
-import { cn } from '@/lib/utils';
+import { cn } from '../../../lib/utils';
 
 interface TruthResultCardProps {
   truthCheck: {

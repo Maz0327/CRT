@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Progress } from "../components/ui/progress";
 import { CheckCircle2, AlertCircle, Zap, Database, Brain, FileText, Globe, Puzzle } from "lucide-react";
-import { FadeIn } from "@/components/ui/fade-in";
+import { FadeIn } from "../components/ui/fade-in";
 
 interface ServiceStatus {
   strategicIntelligence: string;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 import { Block } from './types';
 import { useCanvasStore } from './useCanvasStore';
 import clsx from 'clsx';
