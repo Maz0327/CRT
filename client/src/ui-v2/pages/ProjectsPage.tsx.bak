@@ -129,6 +129,7 @@ export default function ProjectsPage() {
                         <MoreVertical className="w-4 h-4" />
                       </button>
                     }
+                    align="right"
                   >
                     {currentProjectId !== project.id && (
                       <PopoverMenuItem
@@ -147,6 +148,7 @@ export default function ProjectsPage() {
                       <PopoverMenuItem
                         onClick={() => handleDelete(project.id)}
                         icon={<Trash2 className="w-4 h-4" />}
+                        destructive
                       >
                         Delete Project
                       </PopoverMenuItem>

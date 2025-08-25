@@ -24,5 +24,3 @@ export async function updateProject(projectId: string, input: Partial<Project>):
 export async function deleteProject(projectId: string): Promise<{ success: true }> {
   return api.del<{ success: true }>(`/projects/${projectId}`);
 }
-
-export default { listProjects, createProject, updateProject, deleteProject };

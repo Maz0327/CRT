@@ -201,6 +201,7 @@ export default function FeedsPage() {
                               <MoreVertical className="w-4 h-4" />
                             </button>
                           }
+                          align="right"
                         >
                           <PopoverMenuItem
                             onClick={() => startEdit(feed)}
@@ -211,6 +212,7 @@ export default function FeedsPage() {
                           <PopoverMenuItem
                             onClick={() => handleDelete(feed.id)}
                             icon={<Trash2 className="w-4 h-4" />}
+                            destructive
                           >
                             Delete Feed
                           </PopoverMenuItem>

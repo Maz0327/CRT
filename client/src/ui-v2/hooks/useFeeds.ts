@@ -40,6 +40,13 @@ export function useFeeds(params?: { projectId?: string; active?: boolean }) {
     },
   });
 
+  const toggleFeed = async (id: string) => {
+    const feed = feeds.find((f) => f.id === id);
+    if (feed) {
+      return updateMutation.mutateAsync({ id, isActive: !feed.isActive });
+    }
+  };
+
   return {
     feeds,
     isLoading,
@@ -47,6 +54,7 @@ export function useFeeds(params?: { projectId?: string; active?: boolean }) {
     createFeed: createMutation.mutateAsync,
     updateFeed: updateMutation.mutateAsync,
     deleteFeed: deleteMutation.mutateAsync,
+    toggleFeed,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
