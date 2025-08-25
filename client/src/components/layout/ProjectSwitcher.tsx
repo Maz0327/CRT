@@ -1,24 +1,24 @@
 // client/src/components/layout/ProjectSwitcher.tsx
 import React, { useState } from 'react';
 import { useProjectContext } from '@/context/ProjectContext';
-import { useProjects } from '../../ui-v2/hooks/useProjects';
+import { useProjects } from '@/hooks/useProjects';
 
 export const ProjectSwitcher: React.FC = () => {
-  const { currentProjectId, setCurrentProjectId } = useProjectContext();
-  const { projects, createProject, isCreating } = useProjects();
+  const { activeProjectId, setActiveProjectId } = useProjectContext();
+  const { projects, addProject } = useProjects();
   const [newName, setNewName] = useState('');
 
-  if (isLoading) return <div className="text-xs text-zinc-400">Loading projects…</div>;
-  if (error) return <div className="text-xs text-red-400">Failed to load projects</div>;
+  if (projects.isLoading) return <div className="text-xs text-zinc-400">Loading projects…</div>;
+  if (projects.error) return <div className="text-xs text-red-400">Failed to load projects</div>;
 
-  const projectsList = projects ?? [];
+  const projectsList = projects.data ?? [];
 
   return (
     <div className="rounded-md border border-zinc-700 bg-zinc-950 p-2">
       <div className="mb-2 text-xs uppercase tracking-wide text-zinc-400">Project</div>
       <select
-        value={currentProjectId ?? ''}
-        onChange={(e) => setCurrentProjectId(e.target.value || null)}
+        value={activeProjectId ?? ''}
+        onChange={(e) => setActiveProjectId(e.target.value || null)}
         className="mb-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
       >
         <option value="">All projects</option>
