@@ -300,33 +300,22 @@ app.use((req, res, next) => {
   );
   startMomentsAggregator();
 
-  // In production mode, serve client files directly
-  if (process.env.NODE_ENV === "production") {
-    import("fs").then(fs => {
-      const clientPath = path.resolve(process.cwd(), "client");
-      if (fs.existsSync(clientPath)) {
-        app.use(express.static(clientPath));
-        app.use("/src", express.static(path.join(clientPath, "src")));
-        app.use("*", (_req, res) => {
-          res.sendFile(path.resolve(clientPath, "index.html"));
-        });
-        console.log(`[server] serving client files from ${clientPath}`);
-      } else {
-        console.log(`[server] client directory not found: ${clientPath}`);
-      }
-    });
-  } else {
-    console.log(`[server] dev mode: proxying frontend requests to Vite on port 5175`);
-    // In development, proxy non-API requests to Vite dev server
-    app.use("*", (req, res, next) => {
-      if (req.path.startsWith("/api")) {
-        return next(); // Let API routes handle themselves
-      }
-      // Proxy to Vite dev server
-      const viteUrl = `http://localhost:5175${req.url}`;
-      return res.redirect(302, viteUrl);
-    });
-  }
+  // TEMPORARY: Skip Vite setup due to import.meta.dirname issue
+  // Serve client files directly in both dev and production modes
+  import("fs").then(fs => {
+    const clientPath = path.resolve(process.cwd(), "client");
+    if (fs.existsSync(clientPath)) {
+      // In development, serve files directly from client folder
+      app.use(express.static(clientPath));
+      app.use("/src", express.static(path.join(clientPath, "src")));
+      app.use("*", (_req, res) => {
+        res.sendFile(path.resolve(clientPath, "index.html"));
+      });
+      console.log(`[server] serving client files from ${clientPath}`);
+    } else {
+      console.log(`[server] client directory not found: ${clientPath}`);
+    }
+  });
 
   // Global error handling middleware - MUST be after Vite setup
   app.use(errorLogger);
@@ -347,8 +336,7 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  // In development, force port 5000 for workflow compatibility
-  const port = process.env.NODE_ENV === "development" ? 5000 : parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "5000", 10);
   
 mountHealth(app);
 if (process.env.NODE_ENV === "production") { mountProdFrontend(app); }

@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const moments = Array.isArray(momentsHook?.moments) ? momentsHook.moments : [];
   const briefsData = briefsHook?.briefs;
   const briefs = Array.isArray(briefsData) ? briefsData : 
-    briefsData && typeof briefsData === 'object' && briefsData !== null && 'rows' in briefsData ? briefsData.rows : [];
+    briefsData && 'rows' in briefsData ? briefsData.rows : [];
 
   const stats = [
     {
