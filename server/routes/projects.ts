@@ -6,8 +6,8 @@ import type { AuthedRequest } from "../middleware/supabase-auth";
 
 export function registerProjectsRoutes(app: Express) {
   
-  // Get all projects for user
-  app.get('/api/projects', requireAuth, async (req: AuthedRequest, res: Response) => {
+  // Get all projects for user - dual mount for proxy compatibility
+  const getProjects = async (req: AuthedRequest, res: Response) => {
     try {
       const user = req.user!;
 
@@ -19,10 +19,14 @@ export function registerProjectsRoutes(app: Express) {
       console.error('Projects list error:', error);
       res.status(500).json({ error: 'Failed to fetch projects' });
     }
-  });
+  };
+  
+  // Mount at both paths for Vite proxy compatibility
+  app.get('/api/projects', requireAuth, getProjects);
+  app.get('/projects', requireAuth, getProjects);
 
-  // Create new project
-  app.post('/api/projects', requireAuth, async (req: AuthedRequest, res: Response) => {
+  // Create new project - dual mount for proxy compatibility
+  const createProject = async (req: AuthedRequest, res: Response) => {
     try {
       const user = req.user!;
 
@@ -42,10 +46,13 @@ export function registerProjectsRoutes(app: Express) {
       console.error('Project creation error:', error);
       res.status(500).json({ error: 'Failed to create project' });
     }
-  });
+  };
+  
+  app.post('/api/projects', requireAuth, createProject);
+  app.post('/projects', requireAuth, createProject);
 
-  // Update project
-  app.patch('/api/projects/:id', requireAuth, async (req: AuthedRequest, res: Response) => {
+  // Update project - dual mount for proxy compatibility
+  const updateProject = async (req: AuthedRequest, res: Response) => {
     try {
       const user = req.user!;
 
@@ -66,10 +73,13 @@ export function registerProjectsRoutes(app: Express) {
       console.error('Project update error:', error);
       res.status(500).json({ error: 'Failed to update project' });
     }
-  });
+  };
+  
+  app.patch('/api/projects/:id', requireAuth, updateProject);
+  app.patch('/projects/:id', requireAuth, updateProject);
 
-  // Delete project (optional for now)
-  app.delete('/api/projects/:id', requireAuth, async (req: AuthedRequest, res: Response) => {
+  // Delete project (optional for now) - dual mount for proxy compatibility
+  const deleteProject = async (req: AuthedRequest, res: Response) => {
     try {
       const user = req.user!;
 
@@ -81,5 +91,8 @@ export function registerProjectsRoutes(app: Express) {
       console.error('Project deletion error:', error);
       res.status(500).json({ error: 'Failed to delete project' });
     }
-  });
+  };
+  
+  app.delete('/api/projects/:id', requireAuth, deleteProject);
+  app.delete('/projects/:id', requireAuth, deleteProject);
 }

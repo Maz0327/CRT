@@ -15,6 +15,13 @@ export function ProjectSwitcher() {
 
   const list = Array.isArray(projects) ? projects : [];
 
+  // Auto-select first project if none selected
+  useEffect(() => {
+    if (!currentProjectId && list.length > 0) {
+      setCurrentProjectId(list[0].id);
+    }
+  }, [currentProjectId, list, setCurrentProjectId]);
+
   const currentProject = list.find((p: Project) => p.id === currentProjectId);
 
   const handleCreateProject = (e: React.FormEvent) => {

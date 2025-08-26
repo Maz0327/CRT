@@ -2,7 +2,6 @@ import { ReactNode, useEffect, createContext, useContext, useState } from "react
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { IS_MOCK_MODE, setScopedProjectId } from "../lib/api";
 import { useAuth, AuthProvider } from "../hooks/useAuth";
-import { useProjects } from "../hooks/useProjects";
 
 const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -25,7 +24,6 @@ export function useProjectContext() {
 }
 
 function ProjectProvider({ children }: { children: ReactNode }) {
-  const { projects } = useProjects();
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   // set header for all API calls
@@ -38,13 +36,6 @@ function ProjectProvider({ children }: { children: ReactNode }) {
     qc.invalidateQueries({ queryKey: ["briefs"] });
     qc.invalidateQueries({ queryKey: ["feeds"] });
   }, [currentProjectId]);
-
-  // pick the first project if none selected yet
-  useEffect(() => {
-    if (!currentProjectId && projects.length > 0) {
-      setCurrentProjectId(projects[0].id);
-    }
-  }, [projects, currentProjectId]);
 
   return (
     <ProjectContext.Provider value={{ currentProjectId, setCurrentProjectId }}>
@@ -88,11 +79,11 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={qc}>
       <ThemeProvider>
-        <ProjectProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <ProjectProvider>
             {children}
-          </AuthProvider>
-        </ProjectProvider>
+          </ProjectProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
