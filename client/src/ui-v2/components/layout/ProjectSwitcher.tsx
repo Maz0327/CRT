@@ -13,14 +13,9 @@ export function ProjectSwitcher() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
 
-  // Auto-select first project if none selected
-  useEffect(() => {
-    if (!currentProjectId && projects.length > 0) {
-      setCurrentProjectId(projects[0].id);
-    }
-  }, [currentProjectId, projects, setCurrentProjectId]);
+  const list = Array.isArray(projects) ? projects : [];
 
-  const currentProject = projects.find((p: Project) => p.id === currentProjectId);
+  const currentProject = list.find((p: Project) => p.id === currentProjectId);
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +41,7 @@ export function ProjectSwitcher() {
           </button>
         }
       >
-        {projects.map((project: Project) => (
+        {list.map((project: Project) => (
           <PopoverMenuItem
             key={project.id}
             onClick={() => setCurrentProjectId(project.id)}
@@ -62,7 +57,7 @@ export function ProjectSwitcher() {
           </PopoverMenuItem>
         ))}
         
-        {projects.length > 0 && (
+        {list.length > 0 && (
           <div className="border-t border-white/10 my-2"></div>
         )}
         

@@ -8,3 +8,5 @@ interface ImportMetaEnv {
   readonly VITE_UIV2_MOCK?: string
 }
 interface ImportMeta { readonly env: ImportMetaEnv }
+
+  readonly VITE_MOCK_AUTH?: string

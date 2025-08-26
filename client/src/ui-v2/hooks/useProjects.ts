@@ -1,45 +1,51 @@
-// client/src/ui-v2/hooks/useProjects.ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createProject as svcCreate, deleteProject as svcDelete, listProjects, updateProject as svcUpdate, Project } from '../services/projects';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as projectsService from "../services/projects";
+import type { Project } from "../types";
 
 export function useProjects() {
   const qc = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['projects'],
-    queryFn: listProjects,
+  const { data = [], isLoading, error } = useQuery<Project[], Error>({
+    queryKey: ["projects"],
+    queryFn: projectsService.listProjects,
   });
 
   const createProject = useMutation({
-    mutationFn: (input: { name: string }) => svcCreate(input),
-    onSuccess: (created) => {
-      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) => [...old, created]);
+    mutationFn: projectsService.createProject,
+    onSuccess: (newProj) => {
+      qc.setQueryData<Project[]>(["projects"], (old = []) => [...old, newProj]);
     },
   });
 
   const updateProject = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<Project> }) => svcUpdate(id, input),
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Project> }) =>
+      projectsService.updateProject(id, patch),
     onSuccess: (updated) => {
-      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) =>
-        old.map((p) => (p.id === updated.id ? updated : p)),
+      qc.setQueryData<Project[]>(["projects"], (old = []) =>
+        old.map((p) => (p.id === updated.id ? updated : p))
       );
     },
   });
 
   const deleteProject = useMutation({
-    mutationFn: (id: string) => svcDelete(id),
+    mutationFn: (id: string) => projectsService.deleteProject(id),
     onSuccess: (_res, id) => {
-      qc.setQueryData<Project[] | undefined>(['projects'], (old = []) => old.filter((p) => p.id !== id));
+      qc.setQueryData<Project[]>(["projects"], (old = []) =>
+        old.filter((p) => p.id !== id)
+      );
     },
   });
 
   return {
-    projects: data ?? [],
+    projects: data,
     isLoading,
-    error: (error as Error) || null,
+    error: error ?? null,
     createProject: createProject.mutateAsync,
-    updateProject: updateProject.mutateAsync,
+    updateProject: ({ id, patch }: { id: string; patch: Partial<Project> }) =>
+      updateProject.mutateAsync({ id, patch }),
     deleteProject: deleteProject.mutateAsync,
     isCreating: createProject.isPending,
+    isUpdating: updateProject.isPending,
+    isDeleting: deleteProject.isPending,
   };
 }

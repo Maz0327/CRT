@@ -1,0 +1,247 @@
+Great, thanks for the console trace — the root cause is clear:
+
+projects.find is not a function → your UI expects projects to be an array, but the hook/service is returning something else (e.g., {rows: [...]}, {data: [...]}, or undefined during load). We’ll fix this properly by normalizing the projects API to always return Project[], and making the hook provide [] as a safe default. That way ProjectSwitcher (and anything else) can safely call .find, .map, etc.
+
+Below are precise, agent-ready steps. They only touch client files and won’t “corrupt” anything. If the agent hits something it can’t do, it should stop and ask you as noted.
+
+⸻
+
+Fix: normalize projects shape end-to-end (agent-ready)
+
+1) Stop dev processes
+
+pkill -f "vite|tsx server/index.ts" 2>/dev/null || true
+
+2) Back up current files (if present)
+
+mkdir -p backups_$(date +%s)
+for f in \
+  client/src/ui-v2/services/projects.ts \
+  client/src/ui-v2/hooks/useProjects.ts \
+  client/src/ui-v2/app/providers.tsx
+do
+  [ -f "$f" ] && cp "$f" "backups_$(date +%s)/$(basename "$f").bak" || true
+done
+
+3) Ensure the canonical client API is intact
+
+(We set this yesterday, but re-assert it to avoid drift. It exports api, IS_MOCK_MODE, setScopedProjectId.)
+
+cat > client/src/ui-v2/lib/api.ts <<'TS'
+let PROJECT_ID: string | null = null;
+export function setScopedProjectId(id: string | null) { PROJECT_ID = id; }
+
+const RAW_BASE = (import.meta as any).env?.VITE_API_BASE || "/api";
+const API_BASE = String(RAW_BASE).replace(/\/$/, "");
+export const IS_MOCK_MODE: boolean = String(
+  (import.meta as any).env?.VITE_MOCK_AUTH ?? ""
+).toLowerCase() === "true";
+
+type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
+
+async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> ?? {})
+  };
+  if (PROJECT_ID) headers["X-Project-ID"] = PROJECT_ID;
+
+  const res = await fetch(url, { ...init, headers, credentials: "include" });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    try {
+      const data = text ? JSON.parse(text) : {};
+      throw new Error(data?.error || data?.message || `${res.status} ${res.statusText}`);
+    } catch {
+      throw new Error(text || `${res.status} ${res.statusText}`);
+    }
+  }
+
+  const ct = res.headers.get("content-type") || "";
+  return (ct.includes("application/json")
+    ? await res.json()
+    : await res.text()) as T;
+}
+
+export const api = {
+  request,
+  get<T = any>(p: string) { return request<T>(p, { method: "GET" }); },
+  post<T = any>(p: string, b?: Json) { return request<T>(p, { method: "POST", body: b===undefined?undefined:JSON.stringify(b) }); },
+  patch<T = any>(p: string, b?: Json) { return request<T>(p, { method: "PATCH", body: b===undefined?undefined:JSON.stringify(b) }); },
+  delete<T = any>(p: string) { return request<T>(p, { method: "DELETE" }); },
+};
+TS
+
+4) Normalize the projects service to always return Project[]
+
+cat > client/src/ui-v2/services/projects.ts <<'TS'
+import { api } from "../lib/api";
+import type { Project } from "../types";
+
+function toArray(res: any): Project[] {
+  if (Array.isArray(res)) return res as Project[];
+  if (res?.rows && Array.isArray(res.rows)) return res.rows as Project[];
+  if (res?.data && Array.isArray(res.data)) return res.data as Project[];
+  return [];
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const res = await api.get<any>("/projects");
+  return toArray(res);
+}
+
+export async function createProject(input: { name: string }): Promise<Project> {
+  return api.post<Project>("/projects", input);
+}
+
+export async function updateProject(id: string, patch: Partial<Project>): Promise<Project> {
+  return api.patch<Project>(`/projects/${id}`, patch);
+}
+
+export async function deleteProject(id: string): Promise<{ success: true }> {
+  return api.delete<{ success: true }>(`/projects/${id}`);
+}
+TS
+
+5) Fix the useProjects hook to default to [] and keep cache in sync
+
+cat > client/src/ui-v2/hooks/useProjects.ts <<'TS'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as projectsService from "../services/projects";
+import type { Project } from "../types";
+
+export function useProjects() {
+  const qc = useQueryClient();
+
+  const { data = [], isLoading, error } = useQuery<Project[], Error>({
+    queryKey: ["projects"],
+    queryFn: projectsService.listProjects,
+  });
+
+  const createProject = useMutation({
+    mutationFn: projectsService.createProject,
+    onSuccess: (newProj) => {
+      qc.setQueryData<Project[]>(["projects"], (old = []) => [...old, newProj]);
+    },
+  });
+
+  const updateProject = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Project> }) =>
+      projectsService.updateProject(id, patch),
+    onSuccess: (updated) => {
+      qc.setQueryData<Project[]>(["projects"], (old = []) =>
+        old.map((p) => (p.id === updated.id ? updated : p))
+      );
+    },
+  });
+
+  const deleteProject = useMutation({
+    mutationFn: (id: string) => projectsService.deleteProject(id),
+    onSuccess: (_res, id) => {
+      qc.setQueryData<Project[]>(["projects"], (old = []) =>
+        old.filter((p) => p.id !== id)
+      );
+    },
+  });
+
+  return {
+    projects: data,
+    isLoading,
+    error: error ?? null,
+    createProject: createProject.mutateAsync,
+    updateProject: ({ id, patch }: { id: string; patch: Partial<Project> }) =>
+      updateProject.mutateAsync({ id, patch }),
+    deleteProject: deleteProject.mutateAsync,
+    isCreating: createProject.isPending,
+    isUpdating: updateProject.isPending,
+    isDeleting: deleteProject.isPending,
+  };
+}
+TS
+
+6) Ensure the providers wire up the scoped project header consistently
+
+(If your providers.tsx already does this, this is a no-op.)
+
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: client/src/ui-v2/app/providers.tsx
+@@
+-import { setScopedProjectId } from "../lib/api";
++import { setScopedProjectId } from "../lib/api";
++import { useProjects } from "../hooks/useProjects";
+@@
+ export function ProjectProvider({ children }: { children: React.ReactNode }) {
+-  // existing context logic...
++  // Minimal, robust wiring:
++  const { projects } = useProjects();
++  const [currentProjectId, setCurrentProjectId] = React.useState<string | null>(null);
++
++  // set header for all API calls
++  React.useEffect(() => {
++    setScopedProjectId(currentProjectId);
++  }, [currentProjectId]);
++
++  // pick the first project if none selected yet
++  React.useEffect(() => {
++    if (!currentProjectId && projects.length > 0) {
++      setCurrentProjectId(projects[0].id);
++    }
++  }, [projects, currentProjectId]);
++
++  // expose via context (your existing context shape may differ—retain as-is)
++  return (
++    <ProjectContext.Provider value={{ currentProjectId, setCurrentProjectId, projects }}>
++      {children}
++    </ProjectContext.Provider>
++  );
+ }
+*** End Patch
+PATCH
+
+If the applypatch command is not available in your Replit image, the agent should instead open client/src/ui-v2/app/providers.tsx and replicate the exact additions above (keeping your existing context shape intact). If it can’t (permissions), stop and ask me.
+
+7) (Optional but recommended) Defensive guard inside ProjectSwitcher
+
+If the agent can edit it safely, add this tiny guard at the top of the component:
+
+const list = Array.isArray(projects) ? projects : [];
+
+…and then use list instead of projects for .find, .map, etc.
+(If the file layout is different, skip this and rely on the normalized hook; it should be enough.)
+
+8) Restart dev
+
+npm run dev
+
+9) Verify quickly
+	•	Open the UI (port 3000) in Replit (this maps to Vite 5175).
+	•	The API remains on port 3001 (Express 5001).
+	•	The ProjectSwitcher should render without crashing.
+	•	If you still see an empty selector, it likely means there are zero projects in the DB. Create one:
+
+curl -sSf -X POST http://localhost:5001/projects \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"My First Project"}' | jq .
+
+If you get a 404 on /projects, tell me — that means your server route isn’t mounted under that path and I’ll give you the exact server-side route patch.
+
+⸻
+
+Why Replit “defaults” to 3001
+	•	Replit’s UI shows two “webviews”:
+	•	3000 → your Vite dev server (the app).
+	•	3001 → your Express API (JSON responses).
+	•	Always open 3000 for the UI. 3001 is only to sanity-check APIs.
+
+⸻
+
+If the agent can’t edit a file or a path doesn’t exist
+	•	Stop and tell me which file/path is missing/locked.
+	•	Don’t guess or half-apply a change — partial edits cause drift.
+
+⸻
+
+Once this is in, the projects.find error will be gone, and we’ll be ready to continue with the remaining steps (27–34) with a stable base.
