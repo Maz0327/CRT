@@ -27,8 +27,10 @@ export default function DashboardPage() {
   const captures = Array.isArray(capturesQuery?.data?.rows) ? capturesQuery.data.rows : [];
   const moments = Array.isArray(momentsHook?.moments) ? momentsHook.moments : [];
   const briefsData = briefsHook?.briefs;
+  
+  // Safe handling for briefsData - check if it's an object before using 'in' operator
   const briefs = Array.isArray(briefsData) ? briefsData : 
-    briefsData && 'rows' in briefsData ? briefsData.rows : [];
+    (briefsData && typeof briefsData === 'object' && !Array.isArray(briefsData) && 'rows' in briefsData) ? briefsData.rows : [];
 
   const stats = [
     {
