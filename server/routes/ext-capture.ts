@@ -47,14 +47,14 @@ router.post('/', requireExtToken, upload.single('media'), async (req: Request, r
 
     // Create capture using storage interface
     const capture = await storage.createCapture({
-      user_id: ext.userId,
-      project_id,
+      userId: ext.userId,
+      projectId: project_id,
       title: req.body.title || 'Extension Capture',
       content: req.body.note || '',
       url: req.body.url || null,
       tags,
       platform: req.body.platform || null,
-      image_url: media_path, // Using image_url field for media path
+      screenshotUrl: media_path, // Using screenshotUrl field for media path
     });
 
     // Enqueue analysis if we have media

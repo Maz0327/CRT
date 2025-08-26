@@ -113,7 +113,6 @@
     "@types/jsonwebtoken": "9.0.6",
     "@types/node": "20.14.11",
     "@types/supertest": "2.0.16",
-    "@vitejs/plugin-react": "4.3.1",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "@vitest/ui": "1.6.0",
     "archiver": "6.0.2",
