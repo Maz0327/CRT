@@ -276,4 +276,45 @@ async function enqueueAnalysisForGroup(groupId: string, userId?: string): Promis
   return "pending-group-" + groupId;
 }
 
+// GET /api/truth/check?groupId=... returns the latest truth_check row for a group
+r.get("/check", publicLimiter, requireAuth, async (req, res) => {
+  try {
+    const pool = (req as any).dbPool;
+    const groupId = (req.query.groupId as string);
+    const checkId = (req.query.checkId as string);
+    if (!groupId && !checkId) return res.status(400).json({ error: "groupId or checkId required" });
+    if (checkId) {
+      const { rows } = await pool.query(`select id, group_id, status, result, error, created_at, started_at, completed_at from truth_checks where id=$1`, [checkId]);
+      if (!rows.length) return res.status(404).json({ error: "not found" });
+      return res.json(rows[0]);
+    }
+    const { rows } = await pool.query(
+      `select id, group_id, status, result, error, created_at, started_at, completed_at
+         from truth_checks
+        where group_id=$1
+        order by created_at desc
+        limit 1`, [groupId]
+    );
+    if (!rows.length) return res.status(404).json({ error: "not found" });
+    res.json(rows[0]);
+  } catch (err: any) {
+    console.error("[truth.check] error", err);
+    return res.status(500).json({ error: "failed to fetch check" });
+  }
+});
+
+// GET /api/truth/job/:jobId - job status
+r.get("/job/:jobId", publicLimiter, requireAuth, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { data: job, error } = await supabaseAdmin.from("analysis_jobs")
+      .select("*").eq("id", jobId).single();
+    if (error || !job) return res.status(404).json({ error: "job not found" });
+    return okJson(res, job);
+  } catch (err: any) {
+    console.error("[truth.job] error", err);
+    return res.status(500).json({ error: "failed to fetch job status" });
+  }
+});
+
 export default r;

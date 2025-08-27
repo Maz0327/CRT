@@ -9,9 +9,9 @@ const asyncHandler = (fn: any) => (req: any, res: any, next: any) => {
 
 // We'll call into existing truth service; Step 32 will complete this wiring.
 async function enqueueGroupTruthCheck(pool: Pool, groupId: string, userId: string) {
-  // Minimal enqueue stub: insert into truth_checks with group_id, then a background worker will pick it up.
+  await pool.query(`insert into truth_checks (group_id, status, created_at) values ($1,'pending', now())`, [groupId]);
   await pool.query(
-    `insert into truth_checks (group_id, status, created_at) values ($1,'pending', now())`,
+    `insert into analysis_jobs (target_type, target_id, status) values ('group', $1, 'pending')`,
     [groupId]
   );
 }
@@ -51,7 +51,7 @@ export function registerGroupRoutes(pool: Pool) {
   router.post("/:id/analyze", asyncHandler(async (req: any, res: any) => {
     const userId = req.user?.id || req.body.userId;
     if (!userId) return res.status(400).json({ error: "userId required" });
-    await enqueueGroupTruthCheck((req as any).dbPool, req.params.id, userId);
+    await enqueueGroupTruthCheck(pool, req.params.id, userId);
     res.json({ status: "queued", groupId: req.params.id });
   }));
 

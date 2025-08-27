@@ -15,6 +15,8 @@ import { extensionSecurity } from "./security/chromeExtensionSecurity";
 import { productionMonitor } from "./monitoring/productionMonitor";
 import { env } from "./lib/env";
 import { ensureCaptureGroupsSchema } from "./db/ensure-capture-groups";
+import { ensureAnalysisSchema } from "./db/ensure-analysis";
+import { startTruthGroupWorker } from "./workers/truth-group-worker";
 import { registerGroupRoutes } from "./routes/groups";
 import { corsMiddleware } from "./lib/cors";
 import { publicLimiter, authLimiter, heavyLimiter } from "./middleware/rateLimit";
@@ -107,6 +109,9 @@ if (env.CAPTURE_GROUPS_ENABLED === "true") {
       console.error("[schema] capture groups ensure failed", e);
       // Don't crash dev server; log and continue.
     });
+  ensureAnalysisSchema(sessionPool)
+    .then(() => console.log("[schema] analysis ensured"))
+    .catch((e) => console.error("[schema] analysis ensure failed", e));
 }
 
 // PostgreSQL-backed session configuration
@@ -308,6 +313,13 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
   if (env.CAPTURE_GROUPS_ENABLED === "true") {
     app.use("/api/groups", registerGroupRoutes(sessionPool));
+  }
+
+  // Background worker for group truth analysis
+  if (env.CAPTURE_GROUPS_ENABLED === "true") {
+    startTruthGroupWorker(sessionPool, {
+      intervalMs: parseInt(process.env.TRUTH_GROUP_WORKER_INTERVAL_MS || "4000", 10),
+    });
   }
 
   // Start Moments Aggregator Worker (Task Block 8A)

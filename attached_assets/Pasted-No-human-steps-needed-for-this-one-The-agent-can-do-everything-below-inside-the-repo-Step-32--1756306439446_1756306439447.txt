@@ -1,0 +1,412 @@
+No human steps needed for this one. The agent can do everything below inside the repo.
+
+⸻
+
+Step 32 — Real pipeline for “Analyze Together” (jobs, worker, results)
+
+Goal: Turn group analysis into a real, durable background job that:
+	•	Queues a job for a groupId
+	•	Aggregates all captures in the group
+	•	Produces a full Truth Lab result JSON (with AI if available, graceful fallback otherwise)
+	•	Stores the result on truth_checks.result + links evidence
+	•	Exposes job/result status via API
+
+Notes:
+• We add idempotent schema changes and a tiny job runner that polls every few seconds.
+• No frontend changes in this step. UI will read statuses/results in a later step.
+• If OpenAI key isn’t set, the pipeline still completes with a heuristic (non-AI) summary so your flow never stalls.
+
+⸻
+
+Replit Agent — exact actions
+
+# 1) Schema: analysis_jobs table + truth_checks result columns (idempotent)
+mkdir -p server/db
+cat > server/db/ensure-analysis.ts <<'TS'
+import { Pool } from "pg";
+
+export async function ensureAnalysisSchema(pool: Pool) {
+  await pool.query(`
+    create table if not exists analysis_jobs (
+      id uuid primary key default gen_random_uuid(),
+      target_type text not null check (target_type in ('capture','group')),
+      target_id uuid not null,
+      status text not null default 'pending',  -- pending|running|complete|error
+      attempts int not null default 0,
+      error text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create index if not exists idx_analysis_jobs_status on analysis_jobs(status, created_at);
+
+    alter table if exists truth_checks
+      add column if not exists result jsonb,
+      add column if not exists started_at timestamptz,
+      add column if not exists completed_at timestamptz,
+      add column if not exists error text;
+
+    -- evidence payload for flexible storage
+    alter table if exists truth_evidence
+      add column if not exists payload jsonb;
+  `);
+}
+TS
+
+# 2) Prompts used by Truth Lab (single-source of truth; jobs call these)
+mkdir -p server/services/truth
+cat > server/services/truth/prompts.ts <<'TS'
+export function buildTruthLabPrompt(input: {
+  topicHint?: string;
+  concatenatedText: string;
+}) {
+  const { topicHint, concatenatedText } = input;
+
+  // System + developer framing for narrative, specificity, and receipts
+  const system = [
+    "You are a senior strategy analyst. Produce rigorous, non-generic analysis.",
+    "Use the Truth Chain: Fact → Observation → Insight → Human Truth → Cultural Moment.",
+    "Be concise but substantial: 2–4 sentences per layer (no single-sentence cop-outs).",
+    "Add a one-sentence headline that reads like a front-page cultural insight.",
+    "Cite up to 5 short receipts (quoted snippets) with minimal source details when possible."
+  ].join(" ");
+
+  const user = [
+    topicHint ? `Topic hint: ${topicHint}` : null,
+    "Analyze the following concatenated sources (screens, posts, transcripts).",
+    "Return strict JSON matching this schema:",
+    `{
+      "headline": "string",
+      "summary": "2 lines max",
+      "truth_chain": {
+        "fact": "2–4 sentences",
+        "observation": "2–4 sentences",
+        "insight": "2–4 sentences",
+        "human_truth": "2–4 sentences",
+        "cultural_moment": "2–4 sentences"
+      },
+      "cohorts": ["short labels"],
+      "strategic_moves": ["short imperatives"],
+      "confidence": 0.0,
+      "receipts": [{"quote":"string","source":"string"}],
+      "why_this_surfaced": "1–2 sentences, reference prior usage if known"
+    }`,
+    "",
+    "==== BEGIN CONTENT ====",
+    concatenatedText.slice(0, 18000), // safety guard
+    "==== END CONTENT ===="
+  ].filter(Boolean).join("\n");
+
+  return { system, user };
+}
+TS
+
+# 3) AI runner with graceful fallback (OpenAI optional)
+cat > server/services/truth/runner.ts <<'TS'
+import OpenAI from "openai";
+import { buildTruthLabPrompt } from "./prompts";
+
+const hasOpenAI = !!process.env.OPENAI_API_KEY;
+
+export async function runTruthLabForText(input: {
+  concatenatedText: string;
+  topicHint?: string;
+}) {
+  const { system, user } = buildTruthLabPrompt(input);
+
+  if (!hasOpenAI) {
+    // Fallback heuristic so pipeline completes even without AI
+    const tokens = input.concatenatedText.split(/\s+/).filter(Boolean);
+    const approxLen = tokens.length;
+    return {
+      headline: "Concentrated signal from grouped captures",
+      summary: "Multiple related inputs suggest a converging pattern.",
+      truth_chain: {
+        fact: `We analyzed ~${approxLen} tokens of grouped content.`,
+        observation: "Sources share overlapping themes; language clusters appear consistent.",
+        insight: "Underlying motivations likely relate to value-seeking and social proof dynamics.",
+        human_truth: "People follow momentum when patterns feel familiar and validated by peers.",
+        cultural_moment: "A micro-trend is forming; early adopters are codifying shared language."
+      },
+      cohorts: ["early adopters", "value-seekers"],
+      strategic_moves: ["codify the pattern", "package social proof"],
+      confidence: 0.55,
+      receipts: [],
+      why_this_surfaced: "Grouped by user; related signals within close time proximity."
+    };
+  }
+
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+  const resp = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-5-mini", // fast default; override via env
+    temperature: 0.3,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user }
+    ],
+    response_format: { type: "json_object" }
+  });
+
+  const raw = resp.choices?.[0]?.message?.content || "{}";
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { error: "LLM returned non-JSON", raw };
+  }
+}
+TS
+
+# 4) Group analysis service: aggregate captures → call runner → persist
+cat > server/services/truth/group.ts <<'TS'
+import { Pool } from "pg";
+import { runTruthLabForText } from "./runner";
+
+type CaptureRow = {
+  id: string;
+  url?: string;
+  title?: string;
+  text?: string;
+  ocr_text?: string;
+  content?: any;
+};
+
+function rowToSnippet(r: CaptureRow) {
+  const parts: string[] = [];
+  if (r.title) parts.push(`TITLE: ${r.title}`);
+  if (r.url) parts.push(`URL: ${r.url}`);
+  const text = r.text || r.ocr_text || (typeof r.content === "string" ? r.content : "");
+  if (text) parts.push(`TEXT: ${text}`);
+  return parts.join("\n").trim();
+}
+
+export async function analyzeGroup(pool: Pool, groupId: string, opts?: { topicHint?: string }) {
+  // 1) Get items in order
+  const { rows: items } = await pool.query(
+    `select cgi.capture_id
+       from capture_group_items cgi
+      where cgi.group_id = $1
+      order by cgi.position asc, cgi.added_at asc`,
+    [groupId]
+  );
+
+  // 2) Fetch capture rows (best-effort columns; schema tolerant)
+  const captureIds = items.map(r => r.capture_id);
+  let concatenatedText = "";
+  if (captureIds.length) {
+    const { rows: caps } = await pool.query(`
+      select id,
+             coalesce(url, '') as url,
+             coalesce(title, '') as title,
+             case when exists(select 1)
+                  then coalesce(text, '') end as text,
+             case when exists(select 1)
+                  then coalesce(ocr_text, '') end as ocr_text,
+             case when exists(select 1)
+                  then content end as content
+        from captures
+       where id = any($1::uuid[])
+    `, [captureIds]);
+    concatenatedText = caps.map(rowToSnippet).join("\n\n---\n\n");
+  }
+
+  // 3) Run Truth Lab (AI or heuristic)
+  const result = await runTruthLabForText({
+    concatenatedText: concatenatedText || "No textual content available.",
+    topicHint: opts?.topicHint
+  });
+
+  // 4) Persist into truth_checks (one row per group run)
+  const { rows: [check] } = await pool.query(
+    `insert into truth_checks (group_id, status, started_at, result, created_at)
+         values ($1, 'complete', now(), $2::jsonb, now())
+      returning id`,
+    [groupId, JSON.stringify(result)]
+  );
+
+  // 5) Optional: store an evidence snapshot row
+  await pool.query(
+    `insert into truth_evidence (group_id, payload)
+         values ($1, $2::jsonb)`,
+    [groupId, JSON.stringify({ captureIds, concatenatedPreview: (concatenatedText || "").slice(0, 4000) })]
+  );
+
+  return { checkId: check.id, result };
+}
+TS
+
+# 5) Wire schema + worker into startup (polls pending jobs)
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/index.ts
+@@
+ import { env } from "./lib/env";
+ import { ensureCaptureGroupsSchema } from "./db/ensure-capture-groups";
++import { ensureAnalysisSchema } from "./db/ensure-analysis";
++import { startTruthGroupWorker } from "./workers/truth-group-worker";
+@@
+ if (env.CAPTURE_GROUPS_ENABLED) {
+-  ensureCaptureGroupsSchema(sessionPool)
++  ensureCaptureGroupsSchema(sessionPool)
+     .then(() => console.log("[schema] capture groups ensured"))
+     .catch((e) => {
+       console.error("[schema] capture groups ensure failed", e);
+     });
++  ensureAnalysisSchema(sessionPool)
++    .then(() => console.log("[schema] analysis ensured"))
++    .catch((e) => console.error("[schema] analysis ensure failed", e));
+ }
+@@
+   registerRoutes(app);
+   if (env.CAPTURE_GROUPS_ENABLED) {
+     app.use("/api/groups", registerGroupRoutes(sessionPool));
+   }
++
++  // Background worker for group truth analysis
++  if (env.CAPTURE_GROUPS_ENABLED) {
++    startTruthGroupWorker(sessionPool, {
++      intervalMs: parseInt(process.env.TRUTH_GROUP_WORKER_INTERVAL_MS || "4000", 10),
++    });
++  }
+*** End Patch
+PATCH
+
+# 6) Implement the worker that consumes analysis_jobs for groups
+mkdir -p server/workers
+cat > server/workers/truth-group-worker.ts <<'TS'
+import { Pool } from "pg";
+import { analyzeGroup } from "../services/truth/group";
+
+export function startTruthGroupWorker(pool: Pool, opts: { intervalMs: number }) {
+  const { intervalMs } = opts;
+  let running = false;
+
+  async function tick() {
+    if (running) return;
+    running = true;
+    try {
+      const { rows } = await pool.query(
+        `select id, target_id
+           from analysis_jobs
+          where status='pending' and target_type='group'
+          order by created_at asc
+          limit 1`
+      );
+      if (!rows.length) return;
+      const job = rows[0];
+
+      await pool.query(`update analysis_jobs set status='running', attempts=attempts+1, updated_at=now() where id=$1`, [job.id]);
+
+      try {
+        const { checkId } = await analyzeGroup(pool, job.target_id);
+        await pool.query(`update analysis_jobs set status='complete', updated_at=now() where id=$1`, [job.id]);
+        // Also mark a truth_checks row for this group as complete if it was queued earlier (best effort)
+        await pool.query(`update truth_checks set status='complete', completed_at=now() where group_id=$1 and status in ('pending','running')`, [job.target_id]);
+        console.log(`[truth-group-worker] complete job ${job.id} → check ${checkId}`);
+      } catch (err: any) {
+        await pool.query(`update analysis_jobs set status='error', error=$2, updated_at=now() where id=$1`, [job.id, String(err?.message || err)]);
+        await pool.query(`update truth_checks set status='error', error=$2, completed_at=now() where group_id=$1 and status in ('pending','running')`, [job.target_id, String(err?.message || err)]);
+        console.error("[truth-group-worker] job failed", job.id, err);
+      }
+    } finally {
+      running = false;
+    }
+  }
+
+  setInterval(tick, Math.max(1000, intervalMs));
+  console.log(`[truth-group-worker] started, interval=${intervalMs}ms`);
+}
+TS
+
+# 7) Update group enqueue to insert a real job + create pending truth_check
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/routes/groups.ts
+@@
+-async function enqueueGroupTruthCheck(pool: Pool, groupId: string, userId: string) {
+-  // Minimal enqueue stub: insert into truth_checks with group_id, then a background worker will pick it up.
+-  await pool.query(
+-    `insert into truth_checks (group_id, status, created_at) values ($1,'pending', now())`,
+-    [groupId]
+-  );
+-}
++async function enqueueGroupTruthCheck(pool: Pool, groupId: string, userId: string) {
++  await pool.query(`insert into truth_checks (group_id, status, created_at) values ($1,'pending', now())`, [groupId]);
++  await pool.query(
++    `insert into analysis_jobs (target_type, target_id, status) values ('group', $1, 'pending')`,
++    [groupId]
++  );
++}
+*** End Patch
+PATCH
+
+# 8) Truth routes: endpoint to check job/result status by group or id
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/routes/truth.ts
+@@
+ router.post("/check", asyncHandler(async (req, res) => {
+@@
+   res.json({ status: "queued", checkId: id, target: groupId ? { groupId } : { captureId } });
+ }));
++
++// GET /api/truth/check?groupId=...  returns the latest truth_check row for a group
++router.get("/check", asyncHandler(async (req, res) => {
++  const pool = (req as any).dbPool;
++  const groupId = (req.query.groupId as string);
++  const checkId = (req.query.checkId as string);
++  if (!groupId && !checkId) return res.status(400).json({ error: "groupId or checkId required" });
++  if (checkId) {
++    const { rows } = await pool.query(`select id, group_id, status, result, error, created_at, started_at, completed_at from truth_checks where id=$1`, [checkId]);
++    if (!rows.length) return res.status(404).json({ error: "not found" });
++    return res.json(rows[0]);
++  }
++  const { rows } = await pool.query(
++    `select id, group_id, status, result, error, created_at, started_at, completed_at
++       from truth_checks
++      where group_id=$1
++      order by created_at desc
++      limit 1`, [groupId]
++  );
++  if (!rows.length) return res.status(404).json({ error: "not found" });
++  res.json(rows[0]);
++}));
+*** End Patch
+PATCH
+
+# 9) Quick smoke: start API, create group, enqueue analysis, poll status
+npm run dev:api >/dev/null 2>&1 & echo $! > /tmp/api.pid
+sleep 2
+
+echo "— create group —"
+GJSON=$(curl -s -X POST http://localhost:5001/api/groups -H 'Content-Type: application/json' -d '{"name":"Group A","userId":"test-user","projectId":"test-project"}')
+echo "$GJSON" | head -c 200; echo
+GID=$(echo "$GJSON" | jq -r '.id' 2>/dev/null)
+
+if [ -n "$GID" ] && [ "$GID" != "null" ]; then
+  echo "— enqueue —"
+  curl -s -X POST http://localhost:5001/api/groups/$GID/analyze -H 'Content-Type: application/json' -d '{"userId":"test-user"}' | head -c 200; echo
+  echo "— poll status (3x) —"
+  for i in 1 2 3; do
+    sleep 4
+    curl -s "http://localhost:5001/api/truth/check?groupId=$GID" | head -c 300; echo
+  done
+else
+  echo "❌ Failed to create group"
+fi
+
+# cleanup
+kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+rm -f /tmp/api.pid
+
+
+⸻
+
+Expected outcomes
+	•	On boot you’ll see [schema] analysis ensured and [truth-group-worker] started.
+	•	POST /api/groups/:id/analyze creates an analysis_jobs row and a pending truth_checks row.
+	•	The worker picks up the job, runs analysis (AI if available), and writes truth_checks.result.
+	•	GET /api/truth/check?groupId=... returns { status: "complete", result: {...} } once done.
+
+In Step 33 we’ll:
+• Add UI hooks to create/select groups, enqueue analysis, and live-poll status;
+• Update the Chrome extension UI to “Add to Group” / “Start Group Analysis”;
+• Display the narrative Truth Lab output with receipts and the Jobs-style headline.
