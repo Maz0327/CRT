@@ -1,0 +1,78 @@
+Human step (quick choice):
+Do you want the Replit “Run” button to start dev mode or production mode by default?
+	•	If dev, leave .replit as run = "npm run dev".
+	•	If prod, change .replit to: run = "npm run start" (you must edit this manually).
+
+⸻
+
+Step 34 — Finalize production run path & verify end-to-end
+
+Goal: build the UI, serve it from the Node server (single process), and prove that HTML, assets, and /api/healthz work in production mode. This locks the “one-click run” story.
+
+Replit Agent — run exactly this
+
+set -e
+
+echo "🚦 Step 34: Production run path & verification"
+
+# 0) Stop anything already running
+pkill -f "vite|tsx server/index.ts" 2>/dev/null || true
+
+# 1) Sanity: show current scripts
+echo "🔎 npm scripts:"
+node -e 'console.log(require("./package.json").scripts)'
+
+# 2) Clean, build front-end for production
+echo "🏗️ Building UI for production…"
+rm -rf dist client/dist 2>/dev/null || true
+npm run build
+
+# 3) Start API+UI in production mode on 5001 (background)
+echo "🚀 Starting server (NODE_ENV=production, PORT=5001)…"
+PORT=5001 NODE_ENV=production tsx server/index.ts \
+  > artifacts/prod-$(date +%s).log 2>&1 & echo $! > /tmp/prod.pid
+
+# Give it a moment
+sleep 2
+
+# 4) Verify HTML root (/) is served (index.html)
+echo "🔎 Checking HTML root…"
+curl -sSI http://localhost:5001/ | sed -n '1,8p'
+
+# 5) Verify assets are being served from /assets
+echo "🔎 Looking for a built JS asset…"
+ASSET="$(ls -1 dist/assets/*.js 2>/dev/null | head -n1 || true)"
+if [ -n "$ASSET" ]; then
+  ASSET_NAME="$(basename "$ASSET")"
+  echo "🔎 Fetching /assets/$ASSET_NAME"
+  curl -sSI "http://localhost:5001/assets/$ASSET_NAME" | sed -n '1,8p'
+else
+  echo "⚠️ No dist/assets/*.js found – build may have failed."
+fi
+
+# 6) Verify API health in production mode
+echo "🔎 /api/healthz"
+curl -sSf http://localhost:5001/healthz && echo
+
+# 7) Verify SPA fallback (client-side route) returns index.html
+for p in /app /truth /briefs /inbox; do
+  echo "🔎 Checking SPA route $p"
+  curl -sSI "http://localhost:5001$p" | sed -n '1,6p'
+done
+
+# 8) Tear down prod instance
+kill "$(cat /tmp/prod.pid)" 2>/dev/null || true
+rm -f /tmp/prod.pid
+
+# 9) Restore dev workflow (so Preview on 3000 keeps working)
+echo "🔁 Restoring dev mode…"
+npm run dev 2>&1 | tee artifacts/dev-$(date +%s).log
+
+What you should see:
+	•	vite build completes and writes dist/ (lists HTML/CSS/JS assets).
+	•	curl to / returns HTTP/1.1 200 OK with Content-Type: text/html.
+	•	A request to /assets/<hash>.js returns 200 OK with application/javascript.
+	•	/healthz returns the JSON {"status":"ok",…}.
+	•	SPA routes like /app and /truth return 200 and HTML (the built index).
+
+If any check fails, paste the last ~80 lines of artifacts/prod-*.log and I’ll zero in on it.

@@ -5,7 +5,7 @@ import fs from "fs";
 
 export default function mountProdFrontend(app: Express) {
   // Resolve from project root in both tsx-run and compiled modes
-  const DIST_DIR = path.resolve(process.cwd(), "client/dist");
+  const DIST_DIR = path.resolve(process.cwd(), "dist");
   const INDEX_HTML = path.join(DIST_DIR, "index.html");
 
   if (!fs.existsSync(INDEX_HTML)) {
