@@ -7,9 +7,13 @@ import { setupAnnotationsRoutes } from "./annotations";
 import { setupAnalyticsRoutes } from "./analytics";
 import registerTruthRoutes from "./truth";
 import searchRouter from "./search";
+import capturesBasic from "./captures-basic";
 
 export function buildApiRouter() {
   const router = Router();
+
+  // Step 30.1: Mount captures-basic routes
+  router.use(capturesBasic);
 
   // Existing modules (keep these as-is)
   registerProjectsRoutes(router as any);
