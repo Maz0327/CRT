@@ -1,44 +1,41 @@
-let PROJECT_ID: string | null = null;
-export function setScopedProjectId(id: string | null) { PROJECT_ID = id; }
+// Canonical API helper for UI v2
 
-const RAW_BASE = (import.meta as any).env?.VITE_API_BASE || "/api";
-const API_BASE = String(RAW_BASE).replace(/\/$/, "");
-export const IS_MOCK_MODE: boolean = String(
-  (import.meta as any).env?.VITE_MOCK_AUTH ?? ""
-).toLowerCase() === "true";
+let scopedProjectId: string | undefined;
 
-type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
+export function setScopedProjectId(id?: string) {
+  scopedProjectId = id?.trim() || undefined;
+}
 
-async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init.headers as Record<string, string> ?? {})
-  };
-  if (PROJECT_ID) headers["X-Project-ID"] = PROJECT_ID;
+// Keep this export to satisfy existing imports
+export const IS_MOCK_MODE = Boolean(import.meta.env.VITE_MOCK_AUTH);
 
-  const res = await fetch(url, { ...init, headers, credentials: "include" });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    try {
-      const data = text ? JSON.parse(text) : {};
-      throw new Error(data?.error || data?.message || `${res.status} ${res.statusText}`);
-    } catch {
-      throw new Error(text || `${res.status} ${res.statusText}`);
-    }
+// Base request wrapper (proxied in dev via Vite)
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers || {});
+  headers.set("Accept", "application/json");
+  if (!headers.has("Content-Type") && init.body) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (scopedProjectId) {
+    headers.set("X-Project-ID", scopedProjectId);
   }
 
+  const res = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Request failed ${res.status}: ${errText || res.statusText}`);
+  }
   const ct = res.headers.get("content-type") || "";
-  return (ct.includes("application/json")
-    ? await res.json()
-    : await res.text()) as T;
+  if (ct.includes("application/json")) return (await res.json()) as T;
+  // fallback — return raw text when not JSON
+  return (await res.text()) as unknown as T;
 }
 
 export const api = {
-  request,
-  get<T = any>(p: string) { return request<T>(p, { method: "GET" }); },
-  post<T = any>(p: string, b?: Json) { return request<T>(p, { method: "POST", body: b===undefined?undefined:JSON.stringify(b) }); },
-  patch<T = any>(p: string, b?: Json) { return request<T>(p, { method: "PATCH", body: b===undefined?undefined:JSON.stringify(b) }); },
-  delete<T = any>(p: string) { return request<T>(p, { method: "DELETE" }); },
+  get: <T>(path: string, init?: RequestInit) => request<T>(path, { method: "GET", ...(init || {}) }),
+  post: <T>(path: string, body?: unknown, init?: RequestInit) =>
+    request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined, ...(init || {}) }),
+  patch: <T>(path: string, body?: unknown, init?: RequestInit) =>
+    request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined, ...(init || {}) }),
+  delete: <T>(path: string, init?: RequestInit) => request<T>(path, { method: "DELETE", ...(init || {}) }),
 };

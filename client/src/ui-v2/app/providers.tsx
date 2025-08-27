@@ -28,7 +28,8 @@ function ProjectProvider({ children }: { children: ReactNode }) {
 
   // set header for all API calls
   useEffect(() => {
-    setScopedProjectId(currentProjectId);
+    // Replace `currentProjectId` with your actual variable
+    setScopedProjectId(currentProjectId || undefined);
     // invalidate project-scoped queries
     // (use broad keys; they're already grouped by params)
     qc.invalidateQueries({ queryKey: ["captures"] });

@@ -137,22 +137,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startMediaWorker();
 
   // Mount modular routers
+  // Step 28.1: Mount /api/me route
+  const meRouter = (await import("./routes/me")).default;
+  app.use("/api", meRouter);
+  
   // Register legacy API routes (non-conflicting ones)
   registerAuthRoutes(app);
   registerProjectsRoutes(app);
   registerExportJobsRoutes(app);
-
-  // Step 28: Add /api/me route for auth diagnostics
-  app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
-    try {
-      const user = req.user!;
-      console.log(`GET /api/me 200 in 0ms :: {"id":"${user.id}","email":"${user.email}"}`);
-      res.json({ id: user.id, email: user.email });
-    } catch (error) {
-      console.error("GET /api/me error:", error);
-      res.status(500).json({ error: "Failed to get user info" });
-    }
-  });
 
   // Import and mount new comprehensive API routes that replace the legacy ones
   const capturesRouter = (await import("./routes/captures")).default;

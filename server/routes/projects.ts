@@ -11,8 +11,10 @@ export function registerProjectsRoutes(app: Express) {
     try {
       const user = req.user!;
 
-      const projects = await storage.getProjects(user.id);
-      const projectDTOs = projects.map(mapProject);
+      const list = await storage.getProjects(user.id);
+      // Always an array
+      const safeList = Array.isArray(list) ? list : [];
+      const projectDTOs = safeList.map(mapProject);
       
       res.json(projectDTOs);
     } catch (error) {
