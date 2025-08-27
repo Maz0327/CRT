@@ -29,7 +29,7 @@ import { enqueue, getJob } from "./jobs/inMemoryQueue";
 // Legacy route functions - temporarily commented to avoid conflicts with new API routers
 // import { registerCapturesRoutes } from "./routes/captures";
 import extensionRoutesNew from "./routes/extension";
-import { registerAuthRoutes } from "./routes/auth";
+// import { registerAuthRoutes } from "./routes/auth"; // Now using mountAuthRoutes
 import { registerProjectsRoutes } from "./routes/projects";
 // import { registerMomentsRoutes } from "./routes/moments";
 // import { registerBriefsRoutes } from "./routes/briefs";
@@ -146,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", projectsRouter);
   
   // Register legacy API routes (non-conflicting ones)
-  registerAuthRoutes(app);
+  // registerAuthRoutes(app); // Now using new mountAuthRoutes in index.ts
   // registerProjectsRoutes(app); // Replaced by new projects router
   registerExportJobsRoutes(app);
 

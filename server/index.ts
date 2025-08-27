@@ -26,6 +26,7 @@ import { fileURLToPath } from "url";
 // near other imports
 import mountStatusRoutes from "./routes/status";
 import { initSentry, sentryErrorHandler } from "./observability/sentry";
+import mountAuthRoutes from "./routes/auth";
 
 
 
@@ -315,6 +316,9 @@ app.use((req, res, next) => {
   app.get("/healthz", healthzEndpoint);
   app.get("/readyz", readyzEndpoint);
   app.use("/api", docsRouter);
+
+  // ...after core middleware but before other /api routers:
+  mountAuthRoutes(app);
 
   const server = await registerRoutes(app);
   if (env.CAPTURE_GROUPS_ENABLED === "true") {

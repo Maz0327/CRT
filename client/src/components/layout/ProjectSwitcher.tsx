@@ -11,7 +11,8 @@ export const ProjectSwitcher: React.FC = () => {
   if (projects.isLoading) return <div className="text-xs text-zinc-400">Loading projects…</div>;
   if (projects.error) return <div className="text-xs text-red-400">Failed to load projects</div>;
 
-  const projectsList = projects.data ?? [];
+  const safeProjects = Array.isArray(projects.data) ? projects.data : [];
+  const current = safeProjects.find(p => p.id === activeProjectId) ?? null;
 
   return (
     <div className="rounded-md border border-zinc-700 bg-zinc-950 p-2">
@@ -22,7 +23,7 @@ export const ProjectSwitcher: React.FC = () => {
         className="mb-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
       >
         <option value="">All projects</option>
-        {projectsList.map((p: any) => (
+        {safeProjects.map((p: any) => (
           <option key={p.id} value={p.id}>
             {p.name || '(untitled)'}
           </option>
