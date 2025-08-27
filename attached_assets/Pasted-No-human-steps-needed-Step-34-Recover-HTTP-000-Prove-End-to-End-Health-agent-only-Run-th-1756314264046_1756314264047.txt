@@ -1,0 +1,81 @@
+No human steps needed.
+
+⸻
+
+Step 34 — Recover HTTP 000 & Prove End-to-End Health (agent-only)
+
+Run this exactly in project root. It will (1) hard-restart both servers, (2) verify route wiring, (3) prove UI→API proxy, and (4) leave you back on npm run dev.
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "── Step 34: Recover & Prove Health ──"
+
+# 0) Clean stop anything lingering
+pkill -f "vite --host" 2>/dev/null || true
+pkill -f "tsx server/index.ts" 2>/dev/null || true
+sleep 0.5
+
+# 1) Quick static sanity: do we actually mount health?
+echo "• Verifying health route is mounted…"
+if rg -n "healthz" server | sed 's/^/   /'; then
+  echo "  ✔ health handler appears present"
+else
+  echo "  ✘ No health route found under /healthz. Investigate server/health.ts or server/index.ts before continuing."
+  exit 1
+fi
+
+# 2) Start API alone (clean, in background), capture logs
+echo "• Starting API on :5001 cleanly…"
+mkdir -p artifacts
+PORT=5001 NODE_ENV=development tsx server/index.ts \
+  > artifacts/api-recovery-$(date +%s).log 2>&1 & echo $! > /tmp/api.pid
+sleep 1.5
+
+# 3) Probe API locally with verbose curl + Node http client (to rule out curl issues)
+echo "• Probing API /healthz (curl)…"
+if ! curl -sv http://127.0.0.1:5001/healthz 2>&1 | tail -n +1; then
+  echo "  ✘ curl probe failed; showing last 80 lines of API log:"
+  tail -n 80 artifacts/api-recovery-*.log || true
+  # Don’t exit yet; try Node http client too
+fi
+
+echo "• Probing API /healthz (Node http client)…"
+node -e "require('http').get('http://127.0.0.1:5001/healthz',r=>r.pipe(process.stdout)).on('error',e=>{console.error('NODE_HTTP_ERR:',e.message);process.exit(2)})" || true
+echo
+
+# 4) Start Vite dev on 5175 (background) and verify index + proxy
+echo "• Starting Vite on :5175…"
+vite --host --port 5175 --force \
+  > artifacts/vite-recovery-$(date +%s).log 2>&1 & echo $! > /tmp/vite.pid
+sleep 1.5
+
+echo "• Checking Vite index…"
+code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5175/)
+echo "  HTTP $code from / (expect 200)"
+[ "$code" = "200" ] || { echo "  ✘ Vite index not 200; tailing vite log:"; tail -n 80 artifacts/vite-recovery-*.log; }
+
+echo "• Checking Vite → API proxy /api/healthz…"
+curl -sv http://127.0.0.1:5175/api/healthz 2>&1 | tail -n +1 || {
+  echo "  ✘ Proxy failed; tailing vite log:"; tail -n 80 artifacts/vite-recovery-*.log; echo; 
+  echo "  ✘ Also tailing API log:"; tail -n 80 artifacts/api-recovery-*.log;
+}
+
+# 5) Clean up background processes from this test
+kill "$(cat /tmp/vite.pid 2>/dev/null)" 2>/dev/null || true
+kill "$(cat /tmp/api.pid 2>/dev/null)" 2>/dev/null || true
+rm -f /tmp/vite.pid /tmp/api.pid
+
+# 6) Restore normal dev (concurrently) and show first few lines from both processes
+echo "• Restoring normal dev (concurrently)…"
+npm run dev 2>&1 | sed -n '1,120p'
+
+echo "── Step 34 complete. If you still see HTTP 000 in Preview, copy the tail of artifacts/*-recovery-*.log here. ──"
+
+What this does (and why it fixes 000s):
+	•	Starts API and Vite separately to isolate which side is failing.
+	•	Probes /healthz with both curl and a Node http client to rule out tooling quirks.
+	•	Emits verbose logs to artifacts/ and tails them only on failure.
+	•	Restores your usual npm run dev at the end.
+
+Paste back any non-200 results and the last ~40 lines of the corresponding artifacts/*-recovery-*.log, and I’ll pinpoint the next fix immediately.
