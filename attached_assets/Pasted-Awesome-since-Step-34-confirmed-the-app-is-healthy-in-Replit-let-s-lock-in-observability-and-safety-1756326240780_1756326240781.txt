@@ -1,0 +1,200 @@
+Awesome—since Step 34 confirmed the app is healthy in Replit, let’s lock in observability and safety rails so we can catch real issues early.
+
+Step 35 — Observability & Health Guardrails (the correct way)
+
+Human step(s) first (you do this)
+	1.	In Replit “Secrets”, add (or confirm) these keys:
+	•	SENTRY_DSN (optional—if you don’t have one yet, skip; the code will no-op cleanly)
+	•	ALLOWED_ORIGINS should include your current worf Preview URL on port 3000 (if we already set this earlier, you’re good).
+
+That’s it. Everything else below is for the agent.
+
+⸻
+
+Replit Agent — do these exactly, in order
+
+35.1 Add a canonical status endpoint (server-only, aggregated)
+	•	Purpose: single place to tell if API, DB, storage, queue, and Truth Lab are alive.
+
+Create server/routes/status.ts
+
+import type { Express, Request, Response } from "express";
+import os from "os";
+import { pool } from "../lib/db"; // adjust if your Pool export path differs
+import { supabase } from "../lib/supabase"; // optional: if you keep a server client
+import pkg from "../../package.json" assert { type: "json" };
+
+export default function mountStatusRoutes(app: Express) {
+  // Simple liveness
+  app.get("/healthz", (_req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      environment: process.env.NODE_ENV || "development",
+      uptime: Math.round(process.uptime()),
+    });
+  });
+
+  // Aggregated API health
+  app.get("/api/status", async (_req: Request, res: Response) => {
+    const started = Date.now();
+    const checks: Record<string, any> = {};
+
+    // DB check
+    try {
+      const r = await pool.query("SELECT 1 as ok");
+      checks.db = { ok: r?.rows?.[0]?.ok === 1, latency_ms: Date.now() - started };
+    } catch (e: any) {
+      checks.db = { ok: false, error: e?.message };
+    }
+
+    // Storage (optional/soft)
+    try {
+      checks.storage = { ok: !!process.env.SUPABASE_URL };
+    } catch {
+      checks.storage = { ok: false };
+    }
+
+    // Truth Lab health (route exists and returns 200)
+    try {
+      // we don't call HTTP; assume route is mounted and feature-flagged
+      checks.truth_lab = { ok: true };
+    } catch {
+      checks.truth_lab = { ok: false };
+    }
+
+    res.json({
+      status: (checks.db?.ok && checks.truth_lab?.ok) ? "ok" : "degraded",
+      version: pkg?.version ?? "0.0.0",
+      env: process.env.NODE_ENV ?? "development",
+      hostname: os.hostname(),
+      checks,
+      t_ms: Date.now() - started,
+    });
+  });
+}
+
+Wire it up in server/index.ts
+	•	Import and mount once, after core middleware and before 404/error handlers:
+
+// near other imports
+import mountStatusRoutes from "./routes/status";
+
+// ... after app + middleware + routers are configured, before notFound/error handlers:
+mountStatusRoutes(app);
+
+
+⸻
+
+35.2 Minimal Sentry bootstrap (safe, opt-in)
+	•	Purpose: capture unhandled server errors in production without changing behavior locally.
+
+Create server/observability/sentry.ts
+
+import * as Sentry from "@sentry/node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import type { Express } from "express";
+
+export function initSentry(app: Express) {
+  const dsn = process.env.SENTRY_DSN;
+  if (!dsn || process.env.NODE_ENV !== "production") return;
+
+  Sentry.init({
+    dsn,
+    environment: process.env.NODE_ENV,
+    tracesSampleRate: 0.1,
+    integrations: [nodeProfilingIntegration()],
+  });
+
+  app.use(Sentry.Handlers.requestHandler());
+  app.use(Sentry.Handlers.tracingHandler());
+}
+
+export function sentryErrorHandler() {
+  const dsn = process.env.SENTRY_DSN;
+  if (!dsn || process.env.NODE_ENV !== "production") return (req:any,res:any,next:any)=>next();
+  return (Sentry.Handlers.errorHandler() as any);
+}
+
+Hook Sentry in server/index.ts
+
+import { initSentry, sentryErrorHandler } from "./observability/sentry";
+
+// immediately after `const app = express();`
+initSentry(app);
+
+// ... after routes (including status) and before your global error handler:
+app.use(sentryErrorHandler());
+
+Note: This is non-invasive. Without SENTRY_DSN or outside production, it does nothing.
+
+⸻
+
+35.3 Add a Preview smoke test that hits the real Replit URL
+
+Create scripts/smoke-preview.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -z "${PREVIEW_URL:-}" ]]; then
+  echo "ERROR: PREVIEW_URL is not set (e.g. 6001....worf.replit.dev:3000)"; exit 1
+fi
+
+echo "→ Checking UI root"
+curl -sSIL "https://${PREVIEW_URL}/" | sed -n '1,3p'
+
+echo "→ Checking API via proxy (/api/healthz)"
+curl -sS "https://${PREVIEW_URL}/api/healthz" | jq .
+
+echo "→ Checking aggregated status (/api/status)"
+curl -sS "https://${PREVIEW_URL}/api/status" | jq .
+
+Make executable & add npm script
+
+chmod +x scripts/smoke-preview.sh
+npm pkg set scripts.smoke:preview="PREVIEW_URL=\$REPLIT_PREVIEW_URL scripts/smoke-preview.sh"
+
+	•	The agent should set REPLIT_PREVIEW_URL at runtime like:
+
+REPLIT_PREVIEW_URL="6001...worf.replit.dev:3000" npm run smoke:preview
+
+
+
+⸻
+
+35.4 Tighten our existing /healthz
+	•	Ensure it responds quickly and supports HEAD correctly.
+
+In server/routes/status.ts (already created):
+
+app.head("/healthz", (_req, res) => res.status(200).end());
+
+
+⸻
+
+35.5 Commit & tag
+
+git add -A
+git commit -m "feat(observability): /api/status, Sentry bootstrap, preview smoke test"
+git tag -f step-35-observability
+git push && git push --force --tags
+
+
+⸻
+
+35.6 Run live smoke against Preview
+
+(Agent: run this once you know the current WorF host)
+
+REPLIT_PREVIEW_URL="YOUR-WORF-HOST:3000" npm run smoke:preview
+
+	•	Expect:
+	•	UI: HTTP/2 200 (or 304)
+	•	/api/healthz: JSON { status: "ok" ... }
+	•	/api/status: JSON status: "ok" | "degraded" with db/storage checks
+
+⸻
+
+If that’s green, we move to Step 36 (Auth polish + user onboarding edge-cases) next.

@@ -1,0 +1,193 @@
+Sweet — now that observability is in, we’ll harden Auth & Onboarding so real strategists can sign in and actually land somewhere useful without tripping over “undefined projects”.
+
+Step 36 — Auth polish & first-run onboarding (the correct way)
+
+Human steps (you do these first)
+	1.	In Replit → Secrets, confirm these exist (exact names):
+	•	SUPABASE_URL
+	•	SUPABASE_ANON_KEY
+	•	SUPABASE_JWT_SECRET  ← (service JWT secret from your Supabase project settings)
+	•	SESSION_SECRET
+	•	ALLOWED_ORIGINS (must include your current worf preview host on port 3000)
+	2.	In Supabase Dashboard → Authentication → URL Configuration:
+	•	Add your worf preview URL (e.g., https://<host>.worf.replit.dev:3000) to Redirect URLs.
+	•	Ensure Email/Password is enabled (for MVP testing), or confirm your chosen provider(s).
+
+When that’s set, tell the agent to run the block below.
+
+⸻
+
+Replit Agent — do these exactly, in order
+
+36.1 Normalize and enforce authenticated API access
+	•	Purpose: Every /api/* (besides login/health) should require a valid Supabase JWT and attach a typed req.user.
+
+Create server/middleware/auth.ts
+
+import type { Request, Response, NextFunction } from "express";
+import { supabaseAdmin } from "../lib/supabase-admin"; // server-side client using SERVICE ROLE (do not expose to client)
+
+declare global {
+  namespace Express {
+    interface UserClaims {
+      id: string;
+      email?: string;
+      role?: string | null;
+    }
+    interface Request {
+      user?: UserClaims;
+    }
+  }
+}
+
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Accept Bearer token or cookie (if you later set a cookie)
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : undefined;
+    if (!token) return res.status(401).json({ error: "Missing bearer token" });
+
+    // Verify via Supabase Admin (does NOT trust client)
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) return res.status(401).json({ error: "Invalid token" });
+
+    req.user = { id: user.id, email: user.email || undefined, role: (user.user_metadata as any)?.role ?? null };
+    return next();
+  } catch (e: any) {
+    return res.status(401).json({ error: "Unauthorized", detail: e?.message });
+  }
+}
+
+Notes
+	•	This trusts no client claims; it always round-trips to Supabase.
+	•	We typed req.user so downstream routes stop guessing.
+
+⸻
+
+36.2 Add minimal auth routes for the UI to “know who I am”
+
+Create server/routes/auth.ts
+
+import type { Express, Request, Response } from "express";
+import { requireAuth } from "../middleware/auth";
+
+export default function mountAuthRoutes(app: Express) {
+  // health for auth subsystem
+  app.get("/api/auth/health", (_req: Request, res: Response) =>
+    res.json({ ok: true, provider: "supabase", env: process.env.NODE_ENV })
+  );
+
+  // current user info (protected)
+  app.get("/api/auth/whoami", requireAuth, (req: Request, res: Response) => {
+    res.json({ user: req.user });
+  });
+
+  // (optional) stateless logout for clients that just drop token
+  app.post("/api/auth/logout", (_req: Request, res: Response) => {
+    // client should delete its token; nothing to do server-side for stateless auth
+    res.json({ ok: true });
+  });
+}
+
+Wire it in server/index.ts
+
+import mountAuthRoutes from "./routes/auth";
+
+// ...after core middleware but before other /api routers:
+mountAuthRoutes(app);
+
+// keep your existing public /healthz and /api/status as-is
+
+
+⸻
+
+36.3 Fix the “projects.find is not a function” crash (first-run UX)
+	•	Root cause: useProjects() sometimes returns a paginated object (or undefined) instead of a plain array.
+	•	Fix both server response and client guard.
+
+Server: ensure /api/projects returns an array
+	•	In your projects route handler, coerce to array:
+
+// pseudo inside server/routes/projects.ts
+const rows = await projectsService.listForUser(req.user!.id, req.projectScope?.id);
+return res.json(Array.isArray(rows) ? rows : (rows?.data ?? rows?.rows ?? []));
+
+Client: harden useProjects()
+	•	In client/src/ui-v2/hooks/useProjects.ts, normalize result:
+
+// after fetching:
+const list = Array.isArray(data) ? data : (data?.data ?? data?.rows ?? []);
+return { projects: list as Project[], /*...*/ };
+
+Client: guard in ProjectSwitcher.tsx
+
+const safeProjects = Array.isArray(projects) ? projects : [];
+const current = safeProjects.find(p => p.id === currentProjectId) ?? null;
+
+This removes the runtime crash and gives a sane default (empty list) on day one.
+
+⸻
+
+36.4 “First project” onboarding gate
+	•	If a user has 0 projects, show a thin Create Project modal and POST to /api/projects.
+	•	You likely already have a modal; ensure it opens automatically when projects.length === 0.
+
+In client/src/ui-v2/app/providers.tsx (or wherever you decide)
+	•	After Auth resolves:
+
+// pseudo
+if (auth.isAuthenticated && projectsLoaded && projects.length === 0) {
+  openCreateProjectModal();
+}
+
+
+⸻
+
+36.5 Allow Auth header through CORS (safety check)
+	•	Ensure your CORS middleware includes:
+	•	Authorization in allowedHeaders
+	•	credentials behavior consistent with your design (we’re stateless here, so credentials not required)
+
+If you’re using a custom CORS helper, verify it covers:
+
+allowedHeaders: ["Content-Type", "Authorization", "X-Project-ID", "X-Requested-With"]
+
+
+⸻
+
+36.6 Add quick smoke checks for auth & projects
+
+# auth subsystem health
+curl -sS http://localhost:5001/api/auth/health | jq .
+
+# whoami (should 401 without token)
+curl -sS http://localhost:5001/api/auth/whoami | jq .
+
+# with token (paste a real Supabase user access token for testing)
+TOKEN="PASTE_USER_ACCESS_TOKEN"
+curl -sS -H "Authorization: Bearer $TOKEN" http://localhost:5001/api/auth/whoami | jq .
+
+
+⸻
+
+36.7 Commit and tag
+
+git add -A
+git commit -m "feat(auth+onboarding): requireAuth, whoami, normalized projects, first-run gate"
+git tag -f step-36-auth-onboarding
+git push && git push --force --tags
+
+
+⸻
+
+36.8 UI sanity check (Preview)
+	•	Open your worf Preview (port 3000).
+	•	Log in via Supabase (however your UI triggers it).
+	•	Confirm:
+	•	No crash in ProjectSwitcher.
+	•	If you’re a brand-new user → you see the Create Project flow automatically.
+	•	Subsequent refreshes remember the active project (Project context persisted).
+
+⸻
+
+If this is all green, next we’ll wire Step 37 — Truth Lab pipeline integration end-to-end (text + bundled screenshots + receipts).

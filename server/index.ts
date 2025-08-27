@@ -23,6 +23,9 @@ import { publicLimiter, authLimiter, heavyLimiter } from "./middleware/rateLimit
 import { projectScope } from "./middleware/project-scope";
 import path from "path";
 import { fileURLToPath } from "url";
+// near other imports
+import mountStatusRoutes from "./routes/status";
+import { initSentry, sentryErrorHandler } from "./observability/sentry";
 
 
 
@@ -58,6 +61,9 @@ const sessionPool = new Pool({
 
 const app = express();
 (app as any).dbPool = sessionPool; // make pool accessible to routers when needed
+
+// immediately after `const app = express();`
+initSentry(app);
 
 // Trust proxy for Replit deployment
 app.set("trust proxy", 1);
@@ -328,6 +334,9 @@ app.use((req, res, next) => {
   );
   startMomentsAggregator();
 
+  // ... after app + middleware + routers are configured, before notFound/error handlers:
+  mountStatusRoutes(app);
+
   // TEMPORARY: Skip Vite setup due to import.meta.dirname issue
   // Serve client files directly in both dev and production modes
   import("fs").then(fs => {
@@ -344,6 +353,9 @@ app.use((req, res, next) => {
       console.log(`[server] client directory not found: ${clientPath}`);
     }
   });
+
+  // ... after routes (including status) and before your global error handler:
+  app.use(sentryErrorHandler());
 
   // Global error handling middleware - MUST be after Vite setup
   app.use(errorLogger);
