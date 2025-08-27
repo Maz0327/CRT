@@ -141,9 +141,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const meRouter = (await import("./routes/me")).default;
   app.use("/api", meRouter);
   
+  // Step 29.2: Mount new projects router
+  const projectsRouter = (await import("./routes/projects")).default;
+  app.use("/api", projectsRouter);
+  
   // Register legacy API routes (non-conflicting ones)
   registerAuthRoutes(app);
-  registerProjectsRoutes(app);
+  // registerProjectsRoutes(app); // Replaced by new projects router
   registerExportJobsRoutes(app);
 
   // Import and mount new comprehensive API routes that replace the legacy ones

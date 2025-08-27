@@ -1,100 +1,46 @@
-import { Express, Request, Response } from "express";
-import { storage } from "../storage";
-import { mapProject } from "../lib/mappers";
-import { requireAuth } from "../middleware/supabase-auth";
-import type { AuthedRequest } from "../middleware/supabase-auth";
+// server/routes/projects.ts
+import { Router } from "express";
+import {
+  listProjectsForUser,
+  createProject,
+  userHasAccessToProject,
+} from "../lib/db/projects";
 
-export function registerProjectsRoutes(app: Express) {
-  
-  // Get all projects for user - dual mount for proxy compatibility
-  const getProjects = async (req: AuthedRequest, res: Response) => {
-    try {
-      const user = req.user!;
+const router = Router();
 
-      const list = await storage.getProjects(user.id);
-      // Always an array
-      const safeList = Array.isArray(list) ? list : [];
-      const projectDTOs = safeList.map(mapProject);
-      
-      res.json(projectDTOs);
-    } catch (error) {
-      console.error('Projects list error:', error);
-      res.status(500).json({ error: 'Failed to fetch projects' });
-    }
-  };
-  
-  // Mount at both paths for Vite proxy compatibility
-  app.get('/api/projects', requireAuth, getProjects);
-  app.get('/projects', requireAuth, getProjects);
+// GET /api/projects -> Project[]
+router.get("/projects", async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "unauthorized" });
+    const list = await listProjectsForUser(req.user.id);
+    return res.json(Array.isArray(list) ? list : []);
+  } catch (e) {
+    next(e);
+  }
+});
 
-  // Create new project - dual mount for proxy compatibility
-  const createProject = async (req: AuthedRequest, res: Response) => {
-    try {
-      const user = req.user!;
+// POST /api/projects { name } -> Project
+router.post("/projects", async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "unauthorized" });
+    const name = String((req.body?.name ?? "")).trim();
+    if (!name) return res.status(400).json({ error: "name_required" });
+    const proj = await createProject(req.user.id, name);
+    return res.status(201).json(proj);
+  } catch (e) {
+    next(e);
+  }
+});
 
-      const { name, description } = req.body;
-      if (!name) {
-        return res.status(400).json({ error: 'Project name is required' });
-      }
+// GET /api/projects/:id/access -> { ok: boolean }
+router.get("/projects/:id/access", async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "unauthorized" });
+    const ok = await userHasAccessToProject(req.user.id, req.params.id);
+    return res.json({ ok });
+  } catch (e) {
+    next(e);
+  }
+});
 
-      const project = await storage.createProject({
-        userId: user.id,
-        name,
-        description: description || null
-      });
-
-      res.status(201).json(mapProject(project));
-    } catch (error) {
-      console.error('Project creation error:', error);
-      res.status(500).json({ error: 'Failed to create project' });
-    }
-  };
-  
-  app.post('/api/projects', requireAuth, createProject);
-  app.post('/projects', requireAuth, createProject);
-
-  // Update project - dual mount for proxy compatibility
-  const updateProject = async (req: AuthedRequest, res: Response) => {
-    try {
-      const user = req.user!;
-
-      const { id } = req.params;
-      const { name, description } = req.body;
-      
-      const project = await storage.updateProject(id, {
-        name,
-        description
-      });
-
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-
-      res.json(mapProject(project));
-    } catch (error) {
-      console.error('Project update error:', error);
-      res.status(500).json({ error: 'Failed to update project' });
-    }
-  };
-  
-  app.patch('/api/projects/:id', requireAuth, updateProject);
-  app.patch('/projects/:id', requireAuth, updateProject);
-
-  // Delete project (optional for now) - dual mount for proxy compatibility
-  const deleteProject = async (req: AuthedRequest, res: Response) => {
-    try {
-      const user = req.user!;
-
-      const { id } = req.params;
-      await storage.deleteProject(id);
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Project deletion error:', error);
-      res.status(500).json({ error: 'Failed to delete project' });
-    }
-  };
-  
-  app.delete('/api/projects/:id', requireAuth, deleteProject);
-  app.delete('/projects/:id', requireAuth, deleteProject);
-}
+export default router;

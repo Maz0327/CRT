@@ -1,33 +1,11 @@
 import { NextFunction, Request, Response } from "express";
-import { storage } from "../storage";
+import { userHasAccessToProject, firstOwnedOrRecentProjectId } from "../lib/db/projects";
 
 declare global {
   namespace Express {
     interface Request {
       projectId?: string | null;
     }
-  }
-}
-
-// Helper function to check if user has access to a project
-async function hasProjectAccess(userId: string, projectId: string): Promise<boolean> {
-  try {
-    const userProjects = await storage.getProjects(userId);
-    return userProjects.some(project => project.id === projectId);
-  } catch (error) {
-    console.error("Error checking project access:", error);
-    return false;
-  }
-}
-
-// Helper function to get user's first owned/recent project ID
-async function firstOwnedOrRecentProjectId(userId: string): Promise<string | null> {
-  try {
-    const userProjects = await storage.getProjects(userId);
-    return userProjects.length > 0 ? userProjects[0].id : null;
-  } catch (error) {
-    console.error("Error getting default project:", error);
-    return null;
   }
 }
 
@@ -44,7 +22,7 @@ export async function projectScope(req: Request, res: Response, next: NextFuncti
 
     if (headerId) {
       // validate user access to headerId
-      const hasAccess = await hasProjectAccess(req.user.id, headerId);
+      const hasAccess = await userHasAccessToProject(req.user.id, headerId);
       if (!hasAccess) return res.status(403).json({ error: "project_access_denied" });
       resolved = headerId;
     } else {

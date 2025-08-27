@@ -1,39 +1,40 @@
-import { useEffect } from 'react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Plus, Folder } from 'lucide-react';
-import { useProjects } from '../../hooks/useProjects';
 import { useProjectContext } from '../../app/providers';
 import { PopoverMenu, PopoverMenuItem } from '../primitives/PopoverMenu';
-import { Project } from '../../types';
 
 export function ProjectSwitcher() {
-  const { projects, createProject, isCreating } = useProjects();
-  const { currentProjectId, setCurrentProjectId } = useProjectContext();
+  const { projects, currentProjectId, setCurrentProjectId, create, isLoading } = useProjectContext();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
 
-  const list = Array.isArray(projects) ? projects : [];
+  const safeProjects = Array.isArray(projects) ? projects : [];
 
-  // Auto-select first project if none selected
-  useEffect(() => {
-    if (!currentProjectId && list.length > 0) {
-      setCurrentProjectId(list[0].id);
-    }
-  }, [currentProjectId, list, setCurrentProjectId]);
-
-  const currentProject = list.find((p: Project) => p.id === currentProjectId);
+  const current = safeProjects.find(p => p.id === currentProjectId) || null;
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (newProjectName.trim()) {
-      createProject(
-        { name: newProjectName.trim() },
-      );
+      create(newProjectName.trim());
       setNewProjectName('');
       setShowCreateModal(false);
     }
   };
+
+  // If there are no projects, render a minimal "Create your first project" CTA
+  if (!isLoading && safeProjects.length === 0) {
+    return (
+      <button
+        className="flex items-center gap-2 px-3 py-2 glass rounded-lg hover:frost-subtle transition-colors bg-blue-500/20 border-blue-500/30"
+        onClick={() => create("My First Project")}
+        disabled={isLoading}
+      >
+        <Plus className="w-4 h-4" />
+        <span className="text-sm font-medium">Create Project</span>
+      </button>
+    );
+  }
 
   return (
     <>
@@ -42,18 +43,18 @@ export function ProjectSwitcher() {
           <button className="flex items-center gap-2 px-3 py-2 glass rounded-lg hover:frost-subtle transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[40px] min-w-0">
             <Folder className="w-4 h-4 stroke-1" />
             <span className="text-sm font-medium truncate max-w-[120px]">
-              {currentProject?.name || 'Select Project'}
+              {current?.name || 'Select Project'}
             </span>
             <ChevronDown className="w-4 h-4 stroke-1 ml-auto" />
           </button>
         }
       >
-        {list.map((project: Project) => (
+        {safeProjects.map((project) => (
           <PopoverMenuItem
             key={project.id}
             onClick={() => setCurrentProjectId(project.id)}
             icon={
-              currentProject?.id === project.id ? (
+              current?.id === project.id ? (
                 <div className="w-2 h-2 bg-blue-500 rounded-full" />
               ) : (
                 <Folder className="w-4 h-4" />
@@ -64,7 +65,7 @@ export function ProjectSwitcher() {
           </PopoverMenuItem>
         ))}
         
-        {list.length > 0 && (
+        {safeProjects.length > 0 && (
           <div className="border-t border-white/10 my-2"></div>
         )}
         
@@ -119,10 +120,10 @@ export function ProjectSwitcher() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!newProjectName.trim() || isCreating}
+                    disabled={!newProjectName.trim() || isLoading}
                     className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
-                    {isCreating ? 'Creating...' : 'Create'}
+                    {isLoading ? 'Creating...' : 'Create'}
                   </button>
                 </div>
               </form>
