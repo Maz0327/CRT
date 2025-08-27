@@ -1,5 +1,4 @@
-import { api } from "../lib/api";
-import type { ID } from "../types";
+type ID = string;
 
 export type TruthCheck = {
   id: string;
@@ -13,35 +12,47 @@ export type TruthCheck = {
   error?: string | null;
 };
 
-export function extractSource(input: { projectId?: ID | null; url?: string; text?: string; imagePath?: string; }) {
-  return api.post< { ok: true, check: TruthCheck } >("/truth/extract", input);
-}
-
-export function analyzeText(id: ID, opts?: { quick?: boolean }) {
-  const q = opts?.quick === false ? "false" : "true";
-  return api.post<{ ok: true, check: TruthCheck }>(`/truth/analyze-text/${id}?quick=${q}`, {});
-}
-
-export function analyzeVisual(id: ID, opts?: { quick?: boolean }) {
-  const q = opts?.quick === false ? "false" : "true";
-  return api.post<{ ok: true, check: TruthCheck }>(`/truth/analyze-visual/${id}?quick=${q}`, {});
-}
-
-export function getTruthCheck(id: ID) {
-  return api.get<TruthCheck>(`/truth/check/${id}`);
-}
-
-export function retryTruthCheck(id: ID) {
-  return api.post<{ ok: true, check: TruthCheck }>(`/truth/retry/${id}`, {});
-}
-
-export async function createTruthCheck(input: { url?: string; text?: string }) {
-  const res = await fetch('/api/truth/checks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(input),
+// MVP Step 37 implementation:
+export async function createTruthCheck(payload: {
+  text?: string;
+  title?: string;
+  urls?: string[];
+  imageUrls?: string[];
+  captureSnippets?: string[];
+}) {
+  // decide endpoint: single text vs bundle
+  const isBundle = (payload.urls?.length || payload.imageUrls?.length || payload.captureSnippets?.length);
+  const path = isBundle ? "/api/truth/analyze-bundle" : "/api/truth/analyze-text";
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // X-Project-ID is set globally in your fetch wrapper or add here if needed
+    },
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to create truth check');
-  return res.json();
+  if (!res.ok) throw new Error(`Truth analysis failed: ${res.status}`);
+  return res.json() as Promise<{ truthCheckId: ID; result: any }>;
+}
+
+export function getTruthCheck(_id: ID) {
+  // implement later when server exposes /api/truth/check/:id
+  throw new Error("getTruthCheck not yet implemented in Step 37");
+}
+
+// Compatibility stubs for existing UI-V2 components (remove in later steps):
+export function extractSource(_input: any) {
+  throw new Error("extractSource not in Step 37, use createTruthCheck instead");
+}
+
+export function analyzeText(_id: ID, _opts?: any) {
+  throw new Error("analyzeText not in Step 37, use createTruthCheck instead");
+}
+
+export function analyzeVisual(_id: ID, _opts?: any) {
+  throw new Error("analyzeVisual not in Step 37, use createTruthCheck instead");
+}
+
+export function retryTruthCheck(_id: ID) {
+  throw new Error("retryTruthCheck not in Step 37");
 }

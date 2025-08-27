@@ -27,6 +27,7 @@ import { fileURLToPath } from "url";
 import mountStatusRoutes from "./routes/status";
 import { initSentry, sentryErrorHandler } from "./observability/sentry";
 import mountAuthRoutes from "./routes/auth";
+import mountTruthRoutes from "./routes/truth";
 
 
 
@@ -319,6 +320,7 @@ app.use((req, res, next) => {
 
   // ...after core middleware but before other /api routers:
   mountAuthRoutes(app);
+  mountTruthRoutes(app);
 
   const server = await registerRoutes(app);
   if (env.CAPTURE_GROUPS_ENABLED === "true") {
