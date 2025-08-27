@@ -244,4 +244,36 @@ r.post("/retry/:id", heavyLimiter, requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/truth/check?captureId=... OR ?groupId=...
+r.post("/check", publicLimiter, requireAuth, async (req, res) => {
+  try {
+    const captureId = (req.query.captureId as string) || req.body.captureId;
+    const groupId = (req.query.groupId as string) || req.body.groupId;
+    if (!captureId && !groupId) return res.status(400).json({ error: "captureId or groupId required" });
+    
+    let id: string;
+    const user = (req as any).user;
+    
+    if (groupId) {
+      // Step 32 will implement real aggregator + analysis; for now, record the intent.
+      id = await enqueueAnalysisForGroup(groupId, user?.id);
+    } else {
+      id = await enqueueAnalysisForCapture(captureId!, user?.id);
+    }
+    res.json({ status: "queued", checkId: id, target: groupId ? { groupId } : { captureId } });
+  } catch (err: any) {
+    console.error("[truth.check] error", err);
+    return res.status(400).json({ error: err?.message || "bad request" });
+  }
+});
+
+async function enqueueAnalysisForCapture(captureId: string, userId?: string): Promise<string> {
+  // placeholder: insert pending row, return id
+  return "pending-" + captureId;
+}
+
+async function enqueueAnalysisForGroup(groupId: string, userId?: string): Promise<string> {
+  return "pending-group-" + groupId;
+}
+
 export default r;

@@ -17,6 +17,7 @@ const EnvSchema = z.object({
 
   // Feature flags
   MOCK_AUTH: z.enum(["0","1"]).default("0"),
+  CAPTURE_GROUPS_ENABLED: z.enum(["true","false"]).default("true"),
 
   // Security / Limits
   RATE_LIMIT_WINDOW_MS: z.string().optional(),

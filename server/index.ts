@@ -14,6 +14,8 @@ import { healthCheckEndpoint, readinessCheck } from "./middleware/healthCheck";
 import { extensionSecurity } from "./security/chromeExtensionSecurity";
 import { productionMonitor } from "./monitoring/productionMonitor";
 import { env } from "./lib/env";
+import { ensureCaptureGroupsSchema } from "./db/ensure-capture-groups";
+import { registerGroupRoutes } from "./routes/groups";
 import { corsMiddleware } from "./lib/cors";
 import { publicLimiter, authLimiter, heavyLimiter } from "./middleware/rateLimit";
 import { projectScope } from "./middleware/project-scope";
@@ -53,6 +55,7 @@ const sessionPool = new Pool({
 });
 
 const app = express();
+(app as any).dbPool = sessionPool; // make pool accessible to routers when needed
 
 // Trust proxy for Replit deployment
 app.set("trust proxy", 1);
@@ -95,6 +98,16 @@ app.use("/api/extension/", extensionSecurity.extensionRateLimit);
 app.use("/api/extension/", extensionSecurity.authenticateExtension);
 app.use("/api/extension/", extensionSecurity.validateRequestSize);
 app.use("/api/extension/", extensionSecurity.setExtensionCSP);
+
+// --- Ensure DB schema for capture groups (idempotent) ---
+if (env.CAPTURE_GROUPS_ENABLED === "true") {
+  ensureCaptureGroupsSchema(sessionPool)
+    .then(() => console.log("[schema] capture groups ensured"))
+    .catch((e) => {
+      console.error("[schema] capture groups ensure failed", e);
+      // Don't crash dev server; log and continue.
+    });
+}
 
 // PostgreSQL-backed session configuration
 app.use(
@@ -293,6 +306,9 @@ app.use((req, res, next) => {
   app.use("/api", docsRouter);
 
   const server = await registerRoutes(app);
+  if (env.CAPTURE_GROUPS_ENABLED === "true") {
+    app.use("/api/groups", registerGroupRoutes(sessionPool));
+  }
 
   // Start Moments Aggregator Worker (Task Block 8A)
   const { startMomentsAggregator } = await import(

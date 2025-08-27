@@ -1,0 +1,371 @@
+No human steps needed for this one. The agent can do everything below inside the repo.
+
+⸻
+
+Step 31 — Server foundations for “Analyze Together” (Capture Groups)
+
+Goal: Add first-class support for grouping multiple captures into a single analysis target:
+	•	New tables: capture_groups, capture_group_items
+	•	Link groups to truth outputs: add group_id to truth_checks and truth_evidence
+	•	API: create group, add/remove items, fetch group, trigger Truth Lab by groupId
+	•	Safe, idempotent schema upgrade (no external DB console required)
+
+Notes:
+• We use Postgres DDL with IF NOT EXISTS so it’s safe to re-run.
+• We don’t touch Vite or any UI files in this step.
+• Truth analysis for groupId is stubbed to a clear path; the full pipeline wiring comes in Step 32.
+
+⸻
+
+Replit Agent — exact actions
+
+# 1) Feature flag (non-blocking default ON) and type decalrations
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/lib/env.ts
+@@
+ export const env = {
+   NODE_ENV: process.env.NODE_ENV || "development",
+   PORT: parseInt(process.env.PORT || "5001", 10),
+   SESSION_SECRET: process.env.SESSION_SECRET || "dev-secret",
++  CAPTURE_GROUPS_ENABLED: (process.env.CAPTURE_GROUPS_ENABLED || "true").toLowerCase() === "true",
+   // ...existing keys
+ };
+*** End Patch
+PATCH
+
+# 2) Idempotent schema upgrade for capture groups + links into truth tables
+mkdir -p server/db
+cat > server/db/ensure-capture-groups.ts <<'TS'
+import { Pool } from "pg";
+
+export async function ensureCaptureGroupsSchema(pool: Pool) {
+  // create tables if missing
+  await pool.query(`
+    create table if not exists capture_groups (
+      id uuid primary key default gen_random_uuid(),
+      project_id uuid not null,
+      user_id uuid not null,
+      name text not null,
+      status text not null default 'draft', -- draft|analyzing|complete|error
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create table if not exists capture_group_items (
+      group_id uuid not null,
+      capture_id uuid not null,
+      position int not null default 0,
+      added_at timestamptz not null default now(),
+      primary key (group_id, capture_id)
+    );
+    -- link items to group and capture tables if they exist
+    do $$
+    begin
+      if exists (select 1 from information_schema.tables where table_name='captures') then
+        alter table if exists capture_group_items
+        add constraint capture_group_items_capture_fk
+        foreign key (capture_id) references captures(id) on delete cascade;
+      end if;
+    end $$;
+
+    -- soft FKs to projects/users if present
+    do $$
+    begin
+      if exists (select 1 from information_schema.tables where table_name='projects') then
+        alter table if exists capture_groups
+        add constraint capture_groups_project_fk
+        foreign key (project_id) references projects(id) on delete set null;
+      end if;
+    end $$;
+
+    do $$
+    begin
+      if exists (select 1 from information_schema.tables where table_name='users') then
+        alter table if exists capture_groups
+        add constraint capture_groups_user_fk
+        foreign key (user_id) references users(id) on delete set null;
+      end if;
+    end $$;
+
+    -- add group_id to truth tables if missing
+    alter table if exists truth_checks
+      add column if not exists group_id uuid;
+
+    alter table if exists truth_evidence
+      add column if not exists group_id uuid;
+
+    -- index for fast lookups
+    create index if not exists idx_capture_group_items_group on capture_group_items(group_id);
+    create index if not exists idx_truth_checks_group on truth_checks(group_id);
+    create index if not exists idx_truth_evidence_group on truth_evidence(group_id);
+  `);
+}
+TS
+
+# 3) Minimal types for compile-time clarity (no breaking imports)
+mkdir -p shared/types
+cat > shared/types/capture-groups.ts <<'TS'
+export type GroupStatus = 'draft' | 'analyzing' | 'complete' | 'error';
+
+export interface CaptureGroup {
+  id: string;
+  project_id: string;
+  user_id: string;
+  name: string;
+  status: GroupStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CaptureGroupItem {
+  group_id: string;
+  capture_id: string;
+  position: number;
+  added_at: string;
+}
+TS
+
+# 4) Group service: small data access helpers
+mkdir -p server/services/groups
+cat > server/services/groups/store.ts <<'TS'
+import { Pool } from "pg";
+import type { CaptureGroup } from "../../../shared/types/capture-groups";
+
+export class GroupStore {
+  constructor(private pool: Pool) {}
+
+  async createGroup(input: { projectId: string; userId: string; name: string }): Promise<CaptureGroup> {
+    const { rows } = await this.pool.query(
+      `insert into capture_groups (project_id, user_id, name) values ($1,$2,$3)
+       returning id, project_id, user_id, name, status, created_at, updated_at`,
+      [input.projectId, input.userId, input.name]
+    );
+    return rows[0];
+  }
+
+  async addItem(groupId: string, captureId: string, position?: number) {
+    await this.pool.query(
+      `insert into capture_group_items (group_id, capture_id, position)
+       values ($1,$2, coalesce($3,0))
+       on conflict (group_id, capture_id) do nothing`,
+      [groupId, captureId, position ?? 0]
+    );
+  }
+
+  async removeItem(groupId: string, captureId: string) {
+    await this.pool.query(
+      `delete from capture_group_items where group_id=$1 and capture_id=$2`,
+      [groupId, captureId]
+    );
+  }
+
+  async getGroup(groupId: string) {
+    const [groupRes, itemsRes] = await Promise.all([
+      this.pool.query(`select * from capture_groups where id=$1`, [groupId]),
+      this.pool.query(`select * from capture_group_items where group_id=$1 order by position asc, added_at asc`, [groupId]),
+    ]);
+    if (groupRes.rowCount === 0) return null;
+    return { group: groupRes.rows[0], items: itemsRes.rows };
+  }
+
+  async setStatus(groupId: string, status: 'draft'|'analyzing'|'complete'|'error') {
+    await this.pool.query(`update capture_groups set status=$2, updated_at=now() where id=$1`, [groupId, status]);
+  }
+}
+TS
+
+# 5) Group routes: CRUD + "analyze together" trigger (delegates to truth service)
+cat > server/routes/groups.ts <<'TS'
+import { Router } from "express";
+import { Pool } from "pg";
+import { GroupStore } from "../services/groups/store";
+import { asyncHandler } from "../middleware/errorHandler";
+
+// We'll call into existing truth service; Step 32 will complete this wiring.
+async function enqueueGroupTruthCheck(pool: Pool, groupId: string, userId: string) {
+  // Minimal enqueue stub: insert into truth_checks with group_id, then a background worker will pick it up.
+  await pool.query(
+    `insert into truth_checks (group_id, status, created_at) values ($1,'pending', now())`,
+    [groupId]
+  );
+}
+
+export function registerGroupRoutes(pool: Pool) {
+  const router = Router();
+  const store = new GroupStore(pool);
+
+  router.post("/", asyncHandler(async (req, res) => {
+    const userId = (req as any).user?.id || req.body.userId; // prefer auth middleware, fallback for dev
+    const projectId = req.header("X-Project-ID") || req.body.projectId;
+    const name = req.body.name || "Untitled Group";
+    if (!userId || !projectId) return res.status(400).json({ error: "userId and projectId required" });
+    const group = await store.createGroup({ userId, projectId, name });
+    res.status(201).json(group);
+  }));
+
+  router.get("/:id", asyncHandler(async (req, res) => {
+    const data = await store.getGroup(req.params.id);
+    if (!data) return res.status(404).json({ error: "group not found" });
+    res.json(data);
+  }));
+
+  router.post("/:id/items", asyncHandler(async (req, res) => {
+    const { captureId, position } = req.body;
+    if (!captureId) return res.status(400).json({ error: "captureId required" });
+    await store.addItem(req.params.id, captureId, position);
+    res.status(204).end();
+  }));
+
+  router.delete("/:id/items/:captureId", asyncHandler(async (req, res) => {
+    await store.removeItem(req.params.id, req.params.captureId);
+    res.status(204).end();
+  }));
+
+  // Trigger analysis for the whole group
+  router.post("/:id/analyze", asyncHandler(async (req, res) => {
+    const userId = (req as any).user?.id || req.body.userId;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    await enqueueGroupTruthCheck((req as any).dbPool, req.params.id, userId);
+    res.json({ status: "queued", groupId: req.params.id });
+  }));
+
+  return router;
+}
+TS
+
+# 6) Wire schema upgrade and routes into server startup
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/index.ts
+@@
+ import { env } from "./lib/env";
++import { ensureCaptureGroupsSchema } from "./db/ensure-capture-groups";
++import { registerGroupRoutes } from "./routes/groups";
+@@
+-const app = express();
++const app = express();
++(app as any).dbPool = sessionPool; // make pool accessible to routers when needed
+@@
+-// PostgreSQL-backed session configuration
++// PostgreSQL-backed session configuration
+ app.use( session({
+@@
+ }) );
+ 
++// --- Ensure DB schema for capture groups (idempotent) ---
++if (env.CAPTURE_GROUPS_ENABLED) {
++  ensureCaptureGroupsSchema(sessionPool)
++    .then(() => console.log("[schema] capture groups ensured"))
++    .catch((e) => {
++      console.error("[schema] capture groups ensure failed", e);
++      // Don't crash dev server; log and continue.
++    });
++}
++
+@@
+-  // mount API routes
++  // mount API routes
+   registerRoutes(app);
++  if (env.CAPTURE_GROUPS_ENABLED) {
++    app.use("/api/groups", registerGroupRoutes(sessionPool));
++  }
+*** End Patch
+PATCH
+
+# 7) Truth routes: accept groupId as an alternative target (no heavy logic yet)
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/routes/truth.ts
+@@
+-import { Router } from "express";
++import { Router } from "express";
+ import { asyncHandler } from "../middleware/errorHandler";
+@@
+-// POST /api/truth/check?captureId=...
++// POST /api/truth/check?captureId=... OR ?groupId=...
+ router.post("/check", asyncHandler(async (req, res) => {
+-  const captureId = (req.query.captureId as string) || req.body.captureId;
+-  if (!captureId) return res.status(400).json({ error: "captureId required" });
+-  // enqueue existing single-capture analysis job...
+-  // (implementation already present in services)
+-  const id = await enqueueAnalysisForCapture(captureId, (req as any).user?.id);
+-  res.json({ status: "queued", checkId: id });
++  const captureId = (req.query.captureId as string) || req.body.captureId;
++  const groupId = (req.query.groupId as string) || req.body.groupId;
++  if (!captureId && !groupId) return res.status(400).json({ error: "captureId or groupId required" });
++  let id: string;
++  if (groupId) {
++    // Step 32 will implement real aggregator + analysis; for now, record the intent.
++    id = await enqueueAnalysisForGroup(groupId, (req as any).user?.id);
++  } else {
++    id = await enqueueAnalysisForCapture(captureId!, (req as any).user?.id);
++  }
++  res.json({ status: "queued", checkId: id, target: groupId ? { groupId } : { captureId } });
+ }));
+*** End Patch
+PATCH
+
+# 8) Provide temporary enqueue functions so this compiles.
+# (Step 32 will replace with real queue/worker path.)
+applypatch <<'PATCH'
+*** Begin Patch
+*** Update File: server/routes/truth.ts
+@@
+-import { asyncHandler } from "../middleware/errorHandler";
++import { asyncHandler } from "../middleware/errorHandler";
++import { Pool } from "pg";
+@@
+ export default function registerTruthRoutes(app: any) {
+   const router = Router();
+   // ... existing mounts ...
+   return router;
+ }
++
++async function enqueueAnalysisForCapture(captureId: string, userId?: string): Promise<string> {
++  // placeholder: insert pending row, return id
++  return "pending-" + captureId;
++}
++
++async function enqueueAnalysisForGroup(groupId: string, userId?: string): Promise<string> {
++  return "pending-group-" + groupId;
++}
+*** End Patch
+PATCH
+
+# 9) Build & basic smoke tests for new endpoints (does not require real captures to pass)
+npm run build >/dev/null 2>&1 || true
+npm run dev:api >/dev/null 2>&1 & echo $! > /tmp/api.pid
+sleep 2
+
+# Create a group (uses test user from server bootstrap if present)
+curl -s -X POST http://localhost:5001/api/groups \
+  -H 'Content-Type: application/json' \
+  -H "X-Project-ID: test-project" \
+  -d '{"name":"Demo Group","userId":"test-user"}' | tee /tmp/group.json
+
+echo
+echo "— Fetch group back —"
+gid=$(jq -r '.id' /tmp/group.json 2>/dev/null || echo '')
+if [ -n "$gid" ] && [ "$gid" != "null" ]; then
+  curl -s http://localhost:5001/api/groups/$gid | head -c 200; echo
+  echo "— Trigger analyze (queued stub) —"
+  curl -s -X POST http://localhost:5001/api/groups/$gid/analyze -H 'Content-Type: application/json' -d '{"userId":"test-user"}' | head -c 200; echo
+else
+  echo "❌ group creation failed (no id)"
+fi
+
+# Cleanup dev API process
+kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+rm -f /tmp/api.pid
+
+
+⸻
+
+Expected outcomes
+	•	On server start, you see: [schema] capture groups ensured
+	•	POST /api/groups returns a JSON object with id, name, etc.
+	•	GET /api/groups/:id returns the group and empty items list.
+	•	POST /api/groups/:id/analyze returns { "status": "queued", "groupId": "..." }
+	•	No UI changes yet; no Vite edits.
+
+Step 32 will: wire the real group analysis pipeline (aggregate evidence across items, apply the new Truth Lab prompts, stream narrative output, and write receipts), plus add extension & Inbox support for “Analyze Together.”
