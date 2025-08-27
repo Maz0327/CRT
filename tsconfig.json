@@ -10,10 +10,15 @@
     "node_modules",
     "build",
     "dist",
+    "client/dist",
     "**/*.test.ts",
-    "client/src/_legacy/**/*",
-    "client/src/__tests__",
-    "**/*.test.tsx"
+    "**/*.test.tsx",
+    "client/src/_legacy/**",
+    "client/src/tests/**",
+    "client/src/__tests__/**",
+    "scripts/**",
+    "server/scripts/**",
+    "legacy/**"
   ],
   "compilerOptions": {
     "target": "ES2018",
