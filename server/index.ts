@@ -28,6 +28,7 @@ import mountStatusRoutes from "./routes/status";
 import { initSentry, sentryErrorHandler } from "./observability/sentry";
 import mountAuthRoutes from "./routes/auth";
 import mountTruthRoutes from "./routes/truth";
+import { runTruthLabMigration } from "./db/runMigrations";
 
 
 
@@ -213,6 +214,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run Truth Lab migration
+  await runTruthLabMigration().catch((e) => {
+    console.error("[migrations] truth-lab migration failed:", e);
+    process.exit(1);
+  });
+
   // Debug endpoints (no admin required) for frontend debug panel
   app.get("/api/debug/logs", async (req, res) => {
     try {

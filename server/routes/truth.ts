@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { analyzeTruthBundle } from "../services/truth/pipeline";
+import { getTruthCheckById } from "../services/truth/store";
 
 export default function mountTruthRoutes(app: Express) {
   app.get("/api/truth/health", (_req: Request, res: Response) =>
@@ -35,5 +36,17 @@ export default function mountTruthRoutes(app: Express) {
     return res.json(out);
   });
 
-  // TODO (later step): GET /api/truth/check/:id to fetch saved result from DB
+  app.get("/api/truth/check/:id", requireAuth, async (req, res) => {
+    const userId = req.user!.id;
+    const id = req.params.id;
+    const found = await getTruthCheckById(id);
+    if (!found) return res.status(404).json({ error: "not_found" });
+
+    // Optional: scope enforcement (ensure record belongs to user or project)
+    if (found.check.user_id !== userId) {
+      // TODO: allow collaborators; for now, enforce strict ownership
+      return res.status(403).json({ error: "forbidden" });
+    }
+    return res.json(found);
+  });
 }

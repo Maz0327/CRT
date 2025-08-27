@@ -35,9 +35,27 @@ export async function createTruthCheck(payload: {
   return res.json() as Promise<{ truthCheckId: ID; result: any }>;
 }
 
-export function getTruthCheck(_id: ID) {
-  // implement later when server exposes /api/truth/check/:id
-  throw new Error("getTruthCheck not yet implemented in Step 37");
+export async function getTruthCheck(id: ID) {
+  const res = await fetch(`/api/truth/check/${id}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`getTruthCheck failed: ${res.status}`);
+  return res.json() as Promise<{
+    check: {
+      id: string;
+      title: string | null;
+      result: any;
+      confidence: number | null;
+      created_at: string;
+    };
+    evidence: Array<{
+      id: string;
+      quote: string | null;
+      url: string | null;
+      source: string | null;
+      event_timestamp: string | null;
+    }>;
+  }>;
 }
 
 // Compatibility stubs for existing UI-V2 components (remove in later steps):

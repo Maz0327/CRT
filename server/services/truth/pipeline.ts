@@ -1,8 +1,7 @@
 import { chatJSON } from "../ai/openai";
 import { truthSystemPrompt, truthUserPrompt } from "./prompt";
 import { extractFromUrl, ocrImagePlaceholder } from "./extract";
-// If you have DB helpers/services already, import them here.
-import { v4 as uuid } from "uuid";
+import { saveTruthCheck, saveEvidence } from "./store";
 
 const MODEL_STRICT = process.env.TRUTH_LAB_MODEL || "gpt-5-thinking"; // changeable by env
 
@@ -64,12 +63,28 @@ export async function analyzeTruthBundle({
     maxTokens: 2000,
   });
 
-  // 3) Persist (MVP: naive save; replace with your services/DAO)
-  const truthCheckId = uuid();
-  // TODO: replace with actual DB saves using your services and schema:
-  // - save truth_checks row (id, user_id, project_id, payload, result)
-  // - save evidence array to truth_evidence
-  // - link receipts to captures when applicable
+  // 3) Persist
+  const truthCheckId = await saveTruthCheck({
+    userId,
+    projectId: projectId ?? null,
+    title: input.title,
+    inputText: input.text,
+    inputUrls: input.urls,
+    inputImages: input.imageUrls,
+    result,
+    confidence: result?.confidence,
+    status: "complete",
+  });
+
+  const ev: any[] = Array.isArray(result?.evidence) ? result.evidence : [];
+  if (ev.length) {
+    await saveEvidence(truthCheckId, ev.map((e) => ({
+      quote: e.quote,
+      url: e.url,
+      source: e.source,
+      timestamp: e.timestamp,
+    })));
+  }
 
   return { truthCheckId, result };
 }
