@@ -142,6 +142,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerProjectsRoutes(app);
   registerExportJobsRoutes(app);
 
+  // Step 28: Add /api/me route for auth diagnostics
+  app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
+    try {
+      const user = req.user!;
+      console.log(`GET /api/me 200 in 0ms :: {"id":"${user.id}","email":"${user.email}"}`);
+      res.json({ id: user.id, email: user.email });
+    } catch (error) {
+      console.error("GET /api/me error:", error);
+      res.status(500).json({ error: "Failed to get user info" });
+    }
+  });
+
   // Import and mount new comprehensive API routes that replace the legacy ones
   const capturesRouter = (await import("./routes/captures")).default;
   const briefsRouter = (await import("./routes/briefs")).default;
@@ -195,6 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Health check routes
   app.get("/health", healthCheckEndpoint);
+  app.get("/healthz", healthCheckEndpoint); // Step 28: Add /healthz route
   app.get("/health/ready", readinessCheck);
 
   // Production monitoring and metrics
