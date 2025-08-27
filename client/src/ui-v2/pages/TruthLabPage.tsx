@@ -1,18 +1,21 @@
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { extractSource, analyzeText, analyzeVisual, type TruthCheck } from "../services/truth";
+import { extractSource, analyzeText as legacyAnalyzeText, analyzeVisual, type TruthCheck, analyzeText } from "../services/truth";
 import { useProjectContext } from "../app/providers";
+import { useLocation } from "wouter";
 
 type Tab = "url" | "text" | "visual";
 
 export function TruthLabPage() {
   const { currentProjectId } = useProjectContext();
+  const [, navigate] = useLocation();
   const [tab, setTab] = useState<Tab>("url");
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [check, setCheck] = useState<TruthCheck | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const mExtract = useMutation({
     mutationFn: async () => {
@@ -22,7 +25,7 @@ export function TruthLabPage() {
       if (tab === "text") body.text = text;
       if (tab === "visual") body.imagePath = imageUrl;
       const resp = await extractSource(body);
-      setCheck(resp.check);
+      // setCheck(resp.check); // disabled for new flow
       return resp;
     }
   });
@@ -30,8 +33,8 @@ export function TruthLabPage() {
   const mText = useMutation({
     mutationFn: async (quick: boolean) => {
       if (!check?.id) throw new Error("no check");
-      const resp = await analyzeText(check.id, { quick });
-      setCheck(resp.check);
+      const resp = await legacyAnalyzeText(check.id, { quick });
+      // setCheck(resp.check); // disabled for new flow
       return resp;
     }
   });
@@ -40,10 +43,22 @@ export function TruthLabPage() {
     mutationFn: async (quick: boolean) => {
       if (!check?.id) throw new Error("no check");
       const resp = await analyzeVisual(check.id, { quick });
-      setCheck(resp.check);
+      // setCheck(resp.check); // disabled for new flow
       return resp;
     }
   });
+
+  async function onAnalyze(text: string, title?: string, projectId?: string) {
+    setSubmitting(true);
+    try {
+      const { truthCheckId } = await analyzeText({ text, title, projectId });
+      navigate(`/truth/check/${truthCheckId}`);
+    } catch (e: any) {
+      setError(e?.message || "Failed to start analysis");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -72,8 +87,11 @@ export function TruthLabPage() {
           <label className="block text-sm mb-2">Paste text</label>
           <textarea className="w-full p-2 h-40 rounded bg-white/5 border border-white/10" value={text} onChange={e=>setText(e.target.value)} />
           <div className="mt-3 flex gap-2">
-            <button className="px-3 py-2 rounded bg-blue-600" disabled={mExtract.isPending} onClick={()=>mExtract.mutate()}>
-              {mExtract.isPending? "Save Text" : "Save Text"}
+            <button className="px-3 py-2 rounded bg-blue-600" disabled={submitting || !text.trim()} onClick={()=>onAnalyze(text, undefined, currentProjectId)}>
+              {submitting ? "Analyzing..." : "Analyze"}
+            </button>
+            <button className="px-3 py-2 rounded bg-white/10" disabled={mExtract.isPending} onClick={()=>mExtract.mutate()}>
+              {mExtract.isPending? "Save Text" : "Save Text (Legacy)"}
             </button>
           </div>
         </div>

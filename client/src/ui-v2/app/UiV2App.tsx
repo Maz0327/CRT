@@ -14,6 +14,7 @@ import NotFoundPage from '../pages/NotFoundPage';
 import { ProjectUploadPage } from '../pages/ProjectUploadPage';
 import { TruthLabPage } from '../pages/TruthLabPage';
 import { TruthDetailPage } from '../pages/TruthDetailPage';
+import TruthResultPage from '../pages/TruthResultPage';
 import { useAuth } from '../hooks/useAuth';
 
 function AppRouter() {
@@ -45,6 +46,7 @@ function AppRouter() {
         <Route path="/feeds" component={FeedsPage} />
         <Route path="/truth-lab" component={TruthLabPage} />
         <Route path="/truth-lab/:id" component={TruthDetailPage} />
+        <Route path="/truth/check/:id" component={TruthResultPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFoundPage} />
       </Switch>

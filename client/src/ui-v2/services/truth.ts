@@ -1,5 +1,7 @@
 type ID = string;
 
+import type { TruthCheckPayload } from "../types/truth";
+
 export type TruthCheck = {
   id: string;
   status: string;
@@ -63,8 +65,26 @@ export function extractSource(_input: any) {
   throw new Error("extractSource not in Step 37, use createTruthCheck instead");
 }
 
-export function analyzeText(_id: ID, _opts?: any) {
-  throw new Error("analyzeText not in Step 37, use createTruthCheck instead");
+export async function analyzeText(input: {
+  title?: string;
+  text: string;
+  projectId?: string;
+}) {
+  const res = await fetch(`/api/truth/analyze-text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`analyzeText failed: ${res.status}`);
+  return res.json() as Promise<{ truthCheckId: string; result?: any }>;
+}
+
+export async function fetchTruthCheck(id: string) {
+  const res = await fetch(`/api/truth/check/${id}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`fetchTruthCheck failed: ${res.status}`);
+  return res.json() as Promise<TruthCheckPayload>;
 }
 
 export function analyzeVisual(_id: ID, _opts?: any) {
