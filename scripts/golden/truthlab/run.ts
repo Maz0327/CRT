@@ -1,5 +1,5 @@
 // Truth Lab Golden Set runner
-// - Tests truth analysis pipeline directly (bypasses HTTP)
+// - Hits the live API endpoint (same process)
 // - Verifies multi-sentence, minimum-length, no-vague-filler outputs
 
 import fs from "node:fs/promises";
@@ -7,12 +7,20 @@ import path from "node:path";
 
 type Fixture = { title: string; text: string };
 
+const API = process.env.API_URL || "http://localhost:5001";
+const PROJECT_ID = process.env.PROJECT_ID || "test-project"; // any valid project in your dev db
+const ENDPOINTS = [
+  "/api/truth/analyze-text",
+  "/api/truth/analyze",               // fallback if your route differs
+  "/api/truth/extract-and-analyze"    // last resort
+];
+
 const MIN = {
-  fact: 50,
-  observation: 70,
-  insight: 70,
-  human_truth: 60,
-  cultural_moment: 70
+  fact: 80,
+  observation: 120,
+  insight: 140,
+  human_truth: 140,
+  cultural_moment: 140
 };
 
 const BANNED_PHRASES = [
@@ -27,14 +35,36 @@ function hasBanned(s: string) {
   const lc = s.toLowerCase();
   return BANNED_PHRASES.some(b => lc.includes(b));
 }
-
 function sentenceCount(s: string) {
   return (s.match(/[.!?]\s/g) || []).length + (/[.!?]$/.test(s) ? 1 : 0);
 }
 
+async function pickEndpoint(): Promise<string> {
+  for (const ep of ENDPOINTS) {
+    try {
+      const res = await fetch(API + ep, {
+        method: "OPTIONS"
+      });
+      if (res.ok || res.status === 405) return ep; // 405 = method not allowed (still exists)
+    } catch {}
+  }
+  // If OPTIONS probing doesn't work, try a trivial POST to detect a 4xx/5xx vs ECONNREFUSED
+  for (const ep of ENDPOINTS) {
+    try {
+      const res = await fetch(API + ep, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "ping", projectId: PROJECT_ID, mode: "quick" })
+      });
+      if (res.status !== 404 && res.status !== 400) return ep;
+    } catch {}
+  }
+  throw new Error("No Truth Lab analyze endpoint found. Expected one of: " + ENDPOINTS.join(", "));
+}
+
 function coerceChain(payload: any) {
-  // Accept either flat keys or nested { result: { truth_chain: {...} } } or { truth_chain: {...} }
-  const chain = payload?.result?.truth_chain ?? payload?.truth_chain ?? payload ?? {};
+  // Accept either flat keys or nested { truth_chain: {...} }
+  const chain = payload?.truth_chain ?? payload ?? {};
   return {
     fact: String(chain.fact || ""),
     observation: String(chain.observation || ""),
@@ -44,56 +74,43 @@ function coerceChain(payload: any) {
   };
 }
 
-async function runCase(fixturePath: string) {
+async function runCase(fixturePath: string, endpoint: string) {
   const raw = await fs.readFile(fixturePath, "utf-8");
   const fx: Fixture = JSON.parse(raw);
 
-  try {
-    // Import the truth analysis pipeline directly
-    const { analyzeTruthBundle } = await import("../../../server/services/truth/pipeline");
-    
-    // Call the function directly with mock user data (use proper UUID format)
-    const result = await analyzeTruthBundle({
-      userId: "00000000-0000-0000-0000-000000000001",
-      projectId: "00000000-0000-0000-0000-000000000002",
-      input: { text: fx.text, title: fx.title }
-    });
+  const res = await fetch(API + endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: fx.text, projectId: PROJECT_ID, mode: "deep" })
+  });
 
-    if ((result as any).error) {
-      throw new Error(`Pipeline error: ${(result as any).error}`);
-    }
-
-    // Debug: Log the actual result structure (uncomment for debugging)
-    // console.log(`Debug - Raw result for ${path.basename(fixturePath)}:`, JSON.stringify(result, null, 2));
-
-    const chain = coerceChain(result);
-
-    const failures: string[] = [];
-    for (const [key, min] of Object.entries(MIN)) {
-      const val = (chain as any)[key] as string;
-      if (!val || val.trim().length < min) {
-        failures.push(`${key} too short (${val?.trim().length || 0} < ${min})`);
-      }
-      if (sentenceCount(val) < 1) {
-        failures.push(`${key} must have at least one sentence`);
-      }
-      if (hasBanned(val)) {
-        failures.push(`${key} contains banned filler phrase`);
-      }
-    }
-
-    return {
-      name: path.basename(fixturePath),
-      ok: failures.length === 0,
-      failures
-    };
-  } catch (err: any) {
-    return {
-      name: path.basename(fixturePath),
-      ok: false,
-      failures: [err?.message || String(err)]
-    };
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`HTTP ${res.status} on ${endpoint} for ${path.basename(fixturePath)} :: ${body}`);
   }
+
+  const json = await res.json();
+  const chain = coerceChain(json);
+
+  const failures: string[] = [];
+  for (const [key, min] of Object.entries(MIN)) {
+    const val = (chain as any)[key] as string;
+    if (!val || val.trim().length < min) {
+      failures.push(`${key} too short (${val?.trim().length || 0} < ${min})`);
+    }
+    if (sentenceCount(val) < 2) {
+      failures.push(`${key} must be multi-sentence`);
+    }
+    if (hasBanned(val)) {
+      failures.push(`${key} contains banned filler phrase`);
+    }
+  }
+
+  return {
+    name: path.basename(fixturePath),
+    ok: failures.length === 0,
+    failures
+  };
 }
 
 async function main() {
@@ -107,12 +124,13 @@ async function main() {
     process.exit(2);
   }
 
-  console.log("✅ Running Truth Lab Golden Set (direct pipeline test)");
+  // Probe endpoint
+  const endpoint = await pickEndpoint();
 
   const results = [];
   for (const f of files) {
     try {
-      results.push(await runCase(f));
+      results.push(await runCase(f, endpoint));
     } catch (err: any) {
       results.push({ name: path.basename(f), ok: false, failures: [err?.message || String(err)] });
     }
