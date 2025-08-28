@@ -13,7 +13,8 @@
     "start": "NODE_ENV=production PORT=5001 tsx server/index.ts",
     "dev:ui": "vite --host --port 5175 --force",
     "dev:api": "PORT=5001 NODE_ENV=development tsx server/index.ts",
-    "smoke:preview": "PREVIEW_URL=$REPLIT_PREVIEW_URL scripts/smoke-preview.sh"
+    "smoke:preview": "PREVIEW_URL=$REPLIT_PREVIEW_URL scripts/smoke-preview.sh",
+    "migrate": "tsx server/db/run-migrations.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

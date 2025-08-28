@@ -8,6 +8,7 @@ import { setupAnalyticsRoutes } from "./analytics";
 import registerTruthRoutes from "./truth";
 import searchRouter from "./search";
 import capturesBasic from "./captures-basic";
+import signalsRouter from "./signals";
 
 export function buildApiRouter() {
   const router = Router();
@@ -26,6 +27,7 @@ export function buildApiRouter() {
   setupAnalyticsRoutes(router as any);
   router.use("/truth", registerTruthRoutes);
   router.use("/search", searchRouter);
+  router.use("/signals", signalsRouter);
 
   return router;
 }

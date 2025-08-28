@@ -1,0 +1,339 @@
+Alright—next actionable move for the Replit agent is to create the canonical Signals domain so Truth Lab has a clean target to write to and the UI can show “purple glow → confirm/needs edit” state. This is the correct foundation (no hacks, no drift).
+
+(no human action needed for this step)
+
+⸻
+
+STEP 41 — Add “Signals” domain (DB + API), no UI yet
+
+Goal: Introduce a first-class signals table and REST routes so Truth Lab can upsert results and the UI can read/update status (unreviewed → confirmed / needs_edit). This replaces ad-hoc usage of truth_checks for display.
+
+1) Create DB migration
+	•	Add folder if missing: server/db/migrations/
+	•	Create: server/db/migrations/041_create_signals.sql with:
+
+-- 041_create_signals.sql
+-- Signals are canonical, presentation-ready analysis units produced by Truth Lab.
+
+-- Extensions (on Supabase these are typically already enabled)
+-- create extension if not exists "pgcrypto";         -- for gen_random_uuid()
+-- create extension if not exists "uuid-ossp";
+
+create table if not exists public.signals (
+  id uuid primary key default gen_random_uuid(),
+
+  user_id uuid not null,
+  project_id uuid null references public.projects(id) on delete set null,
+  capture_id uuid null references public.captures(id) on delete set null,
+
+  title text not null,
+  summary text not null,
+
+  truth_chain jsonb not null,               -- { fact, observation, insight, human_truth, cultural_moment }
+  cohorts text[] not null default '{}',     -- ["Gen-Z beauty dupers", ...]
+  strategic_moves text[] not null default '{}',
+  evidence jsonb[] not null default '{}',   -- [{quote, url, timestamp, source}]
+  confidence numeric null check (confidence >= 0 and confidence <= 1),
+  why_this_surfaced text null,
+
+  source text not null default 'upload'
+    check (source in ('upload','extension','feed','manual','api','other')),
+  origin text not null default 'web',
+
+  status text not null default 'unreviewed'
+    check (status in ('unreviewed','confirmed','needs_edit')),
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_signals_project_id on public.signals(project_id);
+create index if not exists idx_signals_user_id on public.signals(user_id);
+create index if not exists idx_signals_status on public.signals(status);
+create index if not exists idx_signals_created_at on public.signals(created_at desc);
+
+-- RLS (we keep API as the gate, but set sane defaults)
+alter table public.signals enable row level security;
+
+-- Allow users to see and manage their own signals
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='signals' and policyname='signals_select_own') then
+    create policy signals_select_own on public.signals
+      for select using (user_id = auth.uid());
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='signals' and policyname='signals_insert_own') then
+    create policy signals_insert_own on public.signals
+      for insert with check (user_id = auth.uid());
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='signals' and policyname='signals_update_own') then
+    create policy signals_update_own on public.signals
+      for update using (user_id = auth.uid());
+  end if;
+end$$;
+
+-- Touch trigger to auto-update updated_at
+create or replace function public.touch_updated_at() returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'signals_touch_updated_at'
+  ) then
+    create trigger signals_touch_updated_at
+      before update on public.signals
+      for each row execute function public.touch_updated_at();
+  end if;
+end$$;
+
+-- Record the migration
+create table if not exists public.schema_migrations (id text primary key, applied_at timestamptz not null default now());
+insert into public.schema_migrations(id) values ('041_create_signals') on conflict do nothing;
+
+2) Add a tiny migration runner (idempotent)
+
+Create server/db/run-migrations.ts:
+
+import { readFileSync, readdirSync } from "fs";
+import path from "path";
+import { Pool } from "pg";
+
+async function main() {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  });
+
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      create table if not exists public.schema_migrations (
+        id text primary key,
+        applied_at timestamptz not null default now()
+      )
+    `);
+
+    const dir = path.resolve(__dirname, "migrations");
+    const files = readdirSync(dir)
+      .filter(f => /^\d+_.*\.sql$/.test(f))
+      .sort();
+
+    for (const f of files) {
+      const id = f.replace(/\.sql$/, "");
+      const { rows } = await client.query("select 1 from public.schema_migrations where id = $1", [id]);
+      if (rows.length) {
+        continue; // already applied
+      }
+      const sql = readFileSync(path.join(dir, f), "utf8");
+      console.log(`Applying migration ${id} ...`);
+      await client.query(sql);
+      console.log(`Applied ${id}`);
+    }
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+main().catch(err => {
+  console.error("Migration failed:", err);
+  process.exit(1);
+});
+
+Add npm script if missing (do not modify existing ones):
+npm pkg set scripts.migrate='tsx server/db/run-migrations.ts'
+
+Run:
+npm run migrate
+
+3) Add Signals service (DB access)
+
+Create server/services/signals.ts:
+
+import { Pool } from "pg";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
+
+export type TruthChain = {
+  fact: string;
+  observation: string;
+  insight: string;
+  human_truth: string;
+  cultural_moment: string;
+};
+
+export type Signal = {
+  id: string;
+  user_id: string;
+  project_id?: string | null;
+  capture_id?: string | null;
+  title: string;
+  summary: string;
+  truth_chain: TruthChain;
+  cohorts: string[];
+  strategic_moves: string[];
+  evidence: Array<Record<string, unknown>>;
+  confidence?: number | null;
+  why_this_surfaced?: string | null;
+  source: "upload" | "extension" | "feed" | "manual" | "api" | "other";
+  origin: string;
+  status: "unreviewed" | "confirmed" | "needs_edit";
+};
+
+export async function listSignals(opts: { userId: string; projectId?: string; status?: string }) {
+  const params: any[] = [opts.userId];
+  let i = 2;
+  let where = "user_id = $1";
+  if (opts.projectId) { where += ` and project_id = $${i++}`; params.push(opts.projectId); }
+  if (opts.status)    { where += ` and status = $${i++}`;     params.push(opts.status); }
+  const { rows } = await pool.query(`select * from public.signals where ${where} order by created_at desc limit 200`, params);
+  return rows;
+}
+
+export async function updateSignalStatus(id: string, userId: string, status: "unreviewed"|"confirmed"|"needs_edit") {
+  const { rows } = await pool.query(
+    `update public.signals set status = $1 where id = $2 and user_id = $3 returning *`,
+    [status, id, userId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function insertSignal(s: Omit<Signal, "id"|"status"> & { status?: Signal["status"] }) {
+  const { rows } = await pool.query(
+    `insert into public.signals
+     (user_id, project_id, capture_id, title, summary, truth_chain, cohorts, strategic_moves, evidence, confidence, why_this_surfaced, source, origin, status)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,coalesce($14,'unreviewed'))
+     returning *`,
+    [
+      s.user_id, s.project_id ?? null, s.capture_id ?? null, s.title, s.summary,
+      s.truth_chain, s.cohorts ?? [], s.strategic_moves ?? [], s.evidence ?? [],
+      s.confidence ?? null, s.why_this_surfaced ?? null, s.source, s.origin, s.status ?? "unreviewed"
+    ]
+  );
+  return rows[0];
+}
+
+4) Add Signals routes
+
+Create server/routes/signals.ts:
+
+import { Router } from "express";
+import { z } from "zod";
+import { listSignals, updateSignalStatus, insertSignal } from "../services/signals";
+
+const router = Router();
+
+// Auth middleware assumed earlier in /api chain
+// GET /api/signals?projectId=&status=
+router.get("/", async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || req.headers["x-user-id"]; // your auth attaches user; fallback for dev
+    if (!userId) return res.status(401).json({ error: "unauthorized" });
+
+    const { projectId, status } = req.query as any;
+    const rows = await listSignals({ userId, projectId, status });
+    res.json({ rows });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/signals/:id/status  { status: 'confirmed' | 'needs_edit' | 'unreviewed' }
+router.patch("/:id/status", async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || req.headers["x-user-id"];
+    if (!userId) return res.status(401).json({ error: "unauthorized" });
+
+    const body = z.object({ status: z.enum(["unreviewed","confirmed","needs_edit"]) }).parse(req.body);
+    const updated = await updateSignalStatus(req.params.id, userId, body.status);
+    if (!updated) return res.status(404).json({ error: "not found" });
+    res.json(updated);
+  } catch (err) { next(err); }
+});
+
+// (DEV ONLY) seed a sample signal to verify end-to-end; NOOP in production
+router.post("/_dev/seed", async (req, res, next) => {
+  try {
+    if (process.env.NODE_ENV === "production") return res.status(404).end();
+    const userId = (req as any).user?.id || (req.headers["x-user-id"] as string) || "00000000-0000-0000-0000-000000000000";
+    const sample = await insertSignal({
+      user_id: userId,
+      project_id: null,
+      capture_id: null,
+      title: "Sample signal: Influencer fatigue accelerates long-form trust",
+      summary: "Creators report burnout; audiences reward slower formats with deeper receipts.",
+      truth_chain: {
+        fact: "Multiple top creators paused weekly output citing burnout.",
+        observation: "Longer explainers see higher watch time and saves.",
+        insight: "Audiences trade frequency for depth when trust is scarce.",
+        human_truth: "People follow those who admit limits and teach what they learn.",
+        cultural_moment: "Return of 'guide' creators vs. trend-chasing clips."
+      },
+      cohorts: ["Creators seeking sustainability","Research-driven viewers"],
+      strategic_moves: ["Ship series-based formats","Publish receipts alongside claims"],
+      evidence: [{quote:"‘I'm slowing down to make better videos’", url:"https://example.com/post", timestamp:new Date().toISOString(), source:"Reddit"}],
+      confidence: 0.78,
+      why_this_surfaced: "Recent cluster in 3 projects referencing 'burnout' + 'long-form'",
+      source: "manual",
+      origin: "web",
+      status: "unreviewed"
+    });
+    res.json(sample);
+  } catch (err) { next(err); }
+});
+
+export default router;
+
+5) Mount the routes
+
+Edit server/routes/index.ts (or wherever API routers are composed):
+
+import { Router } from "express";
+import signalsRouter from "./signals";
+// ... other imports
+
+const router = Router();
+
+// existing route mounts...
+router.use("/signals", signalsRouter);
+
+export { router as registerRoutes }; // or export default, match existing pattern
+
+If your project uses a different export shape (e.g., export function registerRoutes(app){ ... }), then inside that function add:
+
+app.use("/api/signals", signalsRouter);
+
+6) Restart & validate
+
+# apply migration (idempotent)
+npm run migrate
+
+# run dev
+npm run dev
+
+# seed a sample in DEV (returns JSON of the new signal)
+curl -sS -X POST http://localhost:5001/api/signals/_dev/seed | jq .
+
+# list signals (should include the seeded one)
+curl -sS "http://localhost:5001/api/signals" | jq .
+
+# update status -> confirmed
+SIG_ID="$(curl -sS http://localhost:5001/api/signals | jq -r '.rows[0].id')"
+curl -sS -X PATCH "http://localhost:5001/api/signals/$SIG_ID/status" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"confirmed"}' | jq .
+
+Success criteria for this step
+	•	npm run migrate completes
+	•	POST /api/signals/_dev/seed returns a valid Signal JSON with status: "unreviewed"
+	•	GET /api/signals lists that record
+	•	PATCH /api/signals/:id/status flips status to "confirmed"
+
+Next step (coming after this): wire Truth Lab’s completion path to insert/upsert into signals and update the UI to show purple glow for unreviewed and Confirm / Needs Edit CTAs.
