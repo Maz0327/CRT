@@ -30,7 +30,7 @@ import { enqueue, getJob } from "./jobs/inMemoryQueue";
 // import { registerCapturesRoutes } from "./routes/captures";
 import extensionRoutesNew from "./routes/extension";
 // import { registerAuthRoutes } from "./routes/auth"; // Now using mountAuthRoutes
-import { registerProjectsRoutes } from "./routes/projects";
+import projectsRouter from "./routes/projects";
 // import { registerMomentsRoutes } from "./routes/moments";
 // import { registerBriefsRoutes } from "./routes/briefs";
 // import { registerFeedsRoutes } from "./routes/feeds";
@@ -57,6 +57,7 @@ import truthRouter from "./routes/truth";
 import { productionMonitor } from "./monitoring/productionMonitor";
 import briefBlocksRouter from "./routes/brief-blocks";
 import uploadsRouter from "./routes/uploads";
+import registerSignalRoutes from "./routes/signals";
 
 // Task Block 8A + 8B: Moments Radar + Chrome Extension
 import momentsRoutesNew from './routes/moments';
@@ -144,6 +145,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Step 29.2: Mount new projects router
   const projectsRouter = (await import("./routes/projects")).default;
   app.use("/api", projectsRouter);
+  
+  // Step 43: Mount signals router
+  registerSignalRoutes(app);
   
   // Register legacy API routes (non-conflicting ones)
   // registerAuthRoutes(app); // Now using new mountAuthRoutes in index.ts

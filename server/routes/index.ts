@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerProjectsRoutes } from "./projects";
+import projectsRouter from "./projects";
 import briefsRouter from "./briefs";
 import googleExportsRouter from "./google-exports";
 import { setupSettingsRoutes } from "./settings";
@@ -8,7 +8,7 @@ import { setupAnalyticsRoutes } from "./analytics";
 import registerTruthRoutes from "./truth";
 import searchRouter from "./search";
 import capturesBasic from "./captures-basic";
-import signalsRouter from "./signals";
+import registerSignalRoutes from "./signals";
 
 export function buildApiRouter() {
   const router = Router();
@@ -17,7 +17,7 @@ export function buildApiRouter() {
   router.use(capturesBasic);
 
   // Existing modules (keep these as-is)
-  registerProjectsRoutes(router as any);
+  router.use(projectsRouter);
   router.use("/briefs", briefsRouter);
   router.use("/google", googleExportsRouter);
 
@@ -27,7 +27,6 @@ export function buildApiRouter() {
   setupAnalyticsRoutes(router as any);
   router.use("/truth", registerTruthRoutes);
   router.use("/search", searchRouter);
-  router.use("/signals", signalsRouter);
 
   return router;
 }

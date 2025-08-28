@@ -1,64 +1,110 @@
-import { Router } from "express";
+import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { listSignals, updateSignalStatus, insertSignal } from "../services/signals";
+import { requireAuth } from "../middleware/auth";
+import { createSignal, confirmSignal, needsEditSignal, listSignals } from "../services/signals";
 
-const router = Router();
+export default function registerSignalRoutes(app: Express) {
+  // GET /api/signals?projectId=&status=
+  app.get("/api/signals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { projectId, status } = req.query;
+      
+      const signals = await listSignals({
+        userId,
+        projectId: projectId as string,
+        status: status as string
+      });
+      
+      res.json(signals);
+    } catch (error: any) {
+      console.error("Error listing signals:", error);
+      res.status(500).json({ error: "Failed to list signals", code: "LIST_SIGNALS_ERROR" });
+    }
+  });
 
-// Auth middleware assumed earlier in /api chain
-// GET /api/signals?projectId=&status=
-router.get("/", async (req, res, next) => {
-  try {
-    const userId = (req as any).user?.id || req.headers["x-user-id"]; // your auth attaches user; fallback for dev
-    if (!userId) return res.status(401).json({ error: "unauthorized" });
+  // POST /api/signals -> create or upsert signal
+  app.post("/api/signals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      
+      const createSchema = z.object({
+        projectId: z.string(),
+        title: z.string().max(80),
+        summary: z.string().max(280),
+        truth_chain: z.object({
+          fact: z.string(),
+          observation: z.string(),
+          insight: z.string(),
+          human_truth: z.string(),
+          cultural_moment: z.string()
+        }).optional(),
+        strategic_moves: z.array(z.string()).max(3).optional(),
+        cohorts: z.array(z.string()).optional(),
+        receipts: z.array(z.object({
+          quote: z.string(),
+          url: z.string(),
+          timestamp: z.string(),
+          source: z.string()
+        })).optional(),
+        confidence: z.number().min(0).max(1).optional(),
+        why_surfaced: z.string().optional(),
+        origin: z.string().default("analysis"),
+        source_tag: z.string().optional(),
+        source_capture_ids: z.array(z.string()).optional(),
+        truth_check_id: z.string().optional()
+      });
+      
+      const data = createSchema.parse(req.body);
+      const signal = await createSignal({ ...data, created_by: userId });
+      
+      res.json(signal);
+    } catch (error: any) {
+      console.error("Error creating signal:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Validation error", details: error.errors, code: "VALIDATION_ERROR" });
+      } else {
+        res.status(500).json({ error: "Failed to create signal", code: "CREATE_SIGNAL_ERROR" });
+      }
+    }
+  });
 
-    const { projectId, status } = req.query as any;
-    const rows = await listSignals({ userId, projectId, status });
-    res.json({ rows });
-  } catch (err) { next(err); }
-});
+  // POST /api/signals/:id/confirm -> sets status='confirmed', inserts feedback
+  app.post("/api/signals/:id/confirm", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const signalId = req.params.id;
+      
+      const signal = await confirmSignal(signalId, userId);
+      if (!signal) {
+        return res.status(404).json({ error: "Signal not found", code: "SIGNAL_NOT_FOUND" });
+      }
+      
+      res.json(signal);
+    } catch (error: any) {
+      console.error("Error confirming signal:", error);
+      res.status(500).json({ error: "Failed to confirm signal", code: "CONFIRM_SIGNAL_ERROR" });
+    }
+  });
 
-// PATCH /api/signals/:id/status  { status: 'confirmed' | 'needs_edit' | 'unreviewed' }
-router.patch("/:id/status", async (req, res, next) => {
-  try {
-    const userId = (req as any).user?.id || req.headers["x-user-id"];
-    if (!userId) return res.status(401).json({ error: "unauthorized" });
+  // POST /api/signals/:id/needs-edit -> sets status='needs_edit', optional notes, inserts feedback
+  app.post("/api/signals/:id/needs-edit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const signalId = req.params.id;
+      
+      const { notes } = req.body;
+      
+      const signal = await needsEditSignal(signalId, userId, notes);
+      if (!signal) {
+        return res.status(404).json({ error: "Signal not found", code: "SIGNAL_NOT_FOUND" });
+      }
+      
+      res.json(signal);
+    } catch (error: any) {
+      console.error("Error marking signal as needs edit:", error);
+      res.status(500).json({ error: "Failed to mark signal as needs edit", code: "NEEDS_EDIT_SIGNAL_ERROR" });
+    }
+  });
 
-    const body = z.object({ status: z.enum(["unreviewed","confirmed","needs_edit"]) }).parse(req.body);
-    const updated = await updateSignalStatus(req.params.id, userId, body.status);
-    if (!updated) return res.status(404).json({ error: "not found" });
-    res.json(updated);
-  } catch (err) { next(err); }
-});
-
-// (DEV ONLY) seed a sample signal to verify end-to-end; NOOP in production
-router.post("/_dev/seed", async (req, res, next) => {
-  try {
-    if (process.env.NODE_ENV === "production") return res.status(404).end();
-    const userId = (req as any).user?.id || (req.headers["x-user-id"] as string) || "00000000-0000-0000-0000-000000000000";
-    const sample = await insertSignal({
-      user_id: userId,
-      project_id: null,
-      capture_id: null,
-      title: "Sample signal: Influencer fatigue accelerates long-form trust",
-      summary: "Creators report burnout; audiences reward slower formats with deeper receipts.",
-      truth_chain: {
-        fact: "Multiple top creators paused weekly output citing burnout.",
-        observation: "Longer explainers see higher watch time and saves.",
-        insight: "Audiences trade frequency for depth when trust is scarce.",
-        human_truth: "People follow those who admit limits and teach what they learn.",
-        cultural_moment: "Return of 'guide' creators vs. trend-chasing clips."
-      },
-      cohorts: ["Creators seeking sustainability","Research-driven viewers"],
-      strategic_moves: ["Ship series-based formats","Publish receipts alongside claims"],
-      evidence: [{quote:"'I'm slowing down to make better videos'", url:"https://example.com/post", timestamp:new Date().toISOString(), source:"Reddit"}],
-      confidence: 0.78,
-      why_this_surfaced: "Recent cluster in 3 projects referencing 'burnout' + 'long-form'",
-      source: "manual",
-      origin: "web",
-      status: "unreviewed"
-    });
-    res.json(sample);
-  } catch (err) { next(err); }
-});
-
-export default router;
+}

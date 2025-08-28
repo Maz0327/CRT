@@ -13,6 +13,7 @@ import NotFoundPage from '../pages/NotFoundPage';
 import { ProjectUploadPage } from '../pages/ProjectUploadPage';
 import { TruthLabPage } from '../pages/TruthLabPage';
 import { TruthDetailPage } from '../pages/TruthDetailPage';
+import SignalsInboxPage from '../pages/SignalsInboxPage';
 
 export const routes: RouteObject[] = [
   {
@@ -62,6 +63,10 @@ export const routes: RouteObject[] = [
       {
         path: 'truth-lab/:id',
         element: <TruthDetailPage />,
+      },
+      {
+        path: 'signals',
+        element: <SignalsInboxPage />,
       },
       {
         path: 'settings',

@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const briefsHook = useBriefs({ projectId: currentProjectId || undefined });
 
   // Null-safety guards to prevent crashes - matching actual hook return types
-  const captures = Array.isArray(capturesQuery?.data?.rows) ? capturesQuery.data.rows : [];
+  const captures = Array.isArray(capturesQuery?.data) ? capturesQuery.data : [];
   const moments = Array.isArray(momentsHook?.moments) ? momentsHook.moments : [];
   const briefsData = briefsHook?.briefs;
   
