@@ -1,7 +1,8 @@
 import { chatJSON } from "../ai/openai";
 import { truthSystemPrompt, truthUserPrompt } from "./prompt";
 import { extractFromUrl, ocrImagePlaceholder } from "./extract";
-import { saveTruthCheck, saveEvidence } from "./store";
+import { saveTruthCheck, saveEvidence, updateTriageFields } from "./store";
+import { computeTriage } from "./triage";
 
 const MODEL_STRICT = process.env.TRUTH_LAB_MODEL || "gpt-5-thinking"; // changeable by env
 
@@ -85,6 +86,10 @@ export async function analyzeTruthBundle({
       timestamp: e.timestamp,
     })));
   }
+
+  // Compute and update triage fields
+  const triageResult = computeTriage(result);
+  await updateTriageFields(truthCheckId, triageResult);
 
   return { truthCheckId, result };
 }

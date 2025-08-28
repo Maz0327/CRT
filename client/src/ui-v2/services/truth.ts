@@ -104,3 +104,28 @@ export async function reviewTruthCheck(checkId: string, data: { status: 'confirm
   if (!res.ok) throw new Error(`reviewTruthCheck failed: ${res.status}`);
   return res.json() as Promise<{ success: boolean; check: any }>;
 }
+
+export async function getTriageList(projectId: string, opts?: { limit?: number; cursor?: string }) {
+  const qp = new URLSearchParams({ 
+    projectId, 
+    ...(opts?.limit ? { limit: String(opts.limit) } : {}), 
+    ...(opts?.cursor ? { cursor: opts.cursor } : {}) 
+  });
+  const res = await fetch(`/api/truth/triage?${qp.toString()}`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`getTriageList failed: ${res.status}`);
+  return res.json() as Promise<{
+    items: Array<{
+      id: string;
+      project_id: string;
+      title: string;
+      review_status: string;
+      triage_label: string;
+      triage_reasons: string[];
+      model_confidence: number;
+      created_at: string;
+      result: any;
+    }>;
+  }>;
+}

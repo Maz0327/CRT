@@ -1,4 +1,5 @@
 import { pg } from "../../lib/pg";
+import type { TriageResult } from "./triage";
 
 export type EvidenceItem = {
   quote?: string;
@@ -81,4 +82,39 @@ export async function getTruthCheckById(id: string) {
   ]);
   if (!check.rows[0]) return null;
   return { check: check.rows[0], evidence: ev.rows };
+}
+
+export async function updateTriageFields(truthCheckId: string, triage: TriageResult) {
+  const q = `
+    UPDATE public.truth_checks 
+    SET model_confidence = $1, triage_label = $2, triage_reasons = $3
+    WHERE id = $4
+  `;
+  await pg.query(q, [
+    triage.model_confidence,
+    triage.triage_label,
+    triage.triage_reasons,
+    truthCheckId
+  ]);
+}
+
+export async function getTriageList(projectId: string, limit = 20, cursor?: string) {
+  let q = `
+    SELECT id, project_id, title, review_status, triage_label, triage_reasons, 
+           model_confidence, created_at, result
+    FROM public.truth_checks 
+    WHERE project_id = $1 AND triage_label IN ('needs_review', 'in_review')
+  `;
+  const params: any[] = [projectId];
+  
+  if (cursor) {
+    q += ` AND created_at < $${params.length + 1}`;
+    params.push(cursor);
+  }
+  
+  q += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+  params.push(limit);
+  
+  const { rows } = await pg.query(q, params);
+  return rows;
 }
