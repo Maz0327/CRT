@@ -19,6 +19,7 @@ export function TruthLabPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const [newSignalId, setNewSignalId] = useState<string | null>(null);
 
   // Triage list query
   const { data: triageData, isLoading: triageLoading, refetch: refetchTriage } = useQuery({
@@ -61,9 +62,16 @@ export function TruthLabPage() {
 
   async function onAnalyze(text: string, title?: string, projectId?: string) {
     setSubmitting(true);
+    setError(null);
+    setNewSignalId(null);
     try {
-      const { truthCheckId } = await analyzeText({ text, title, projectId });
-      navigate(`/truth/check/${truthCheckId}`);
+      const result = await analyzeText({ text, title, projectId });
+      if (result?.signalId) {
+        setNewSignalId(result.signalId);
+      }
+      if (result?.truthCheckId) {
+        navigate(`/truth/check/${result.truthCheckId}`);
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to start analysis");
     } finally {
@@ -217,6 +225,26 @@ export function TruthLabPage() {
               <p className="text-sm mt-1">Great work keeping up with quality control!</p>
             </div>
           )}
+        </div>
+      )}
+
+      {newSignalId && (
+        <div className="mt-6 glass-card p-4">
+          <div className="flex items-center gap-3">
+            <button
+              className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              onClick={() => {
+                // route to Inbox with highlight param
+                window.location.href = `/inbox?highlight=${newSignalId}`;
+              }}
+              aria-label="View Signal"
+            >
+              View Signal
+            </button>
+            <span className="text-sm text-muted-foreground">
+              Saved as a Signal. You can confirm or edit it from Inbox.
+            </span>
+          </div>
         </div>
       )}
 

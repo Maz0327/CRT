@@ -80,3 +80,7 @@ export async function confirmSignal(id: string) {
 export async function needsEditSignal(id: string, notes?: string) {
   return api.post(`/signals/${id}/needs-edit`, { notes });
 }
+
+export async function getSignalById(id: string) {
+  return api.get(`/signals/${id}`);
+}

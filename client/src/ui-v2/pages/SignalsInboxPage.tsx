@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Page } from '../components/layout/Page';
 import { SignalCard } from '../components/SignalCard';
 import { NeedsEditModal } from '../components/NeedsEditModal';
@@ -20,6 +20,19 @@ export default function SignalsInboxPage() {
     signalId: string;
     signalTitle: string;
   }>({ isOpen: false, signalId: '', signalTitle: '' });
+
+  // If navigated with ?highlight=<signalId>, scroll that card into view
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("highlight");
+    if (!id) return;
+    const el = document.querySelector(`[data-signal-id="${id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2","ring-purple-400","ring-offset-2");
+      setTimeout(() => el.classList.remove("ring-2","ring-purple-400","ring-offset-2"), 1500);
+    }
+  }, []);
 
   // Queries for different tabs
   const unreviewedQuery = useSignals(currentProjectId || undefined, 'unreviewed');

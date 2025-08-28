@@ -78,6 +78,10 @@ async function main() {
     console.error("Response:", body);
     throw new Error("Truth API failed with status " + res.status);
   }
+  if (!body?.signalId || typeof body.signalId !== "string") {
+    console.error("Response:", body);
+    throw new Error("Expected signalId in Truth Lab response");
+  }
 
   // 3) shape checks
   const tc = body?.truth_chain || {};

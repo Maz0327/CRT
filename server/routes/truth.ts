@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { analyzeTruthBundle } from "../services/truth/pipeline";
 import { getTruthCheckById, getTriageList } from "../services/truth/store";
+import { promoteTruthToSignal } from "../services/signal-promote";
 
 export default function mountTruthRoutes(app: Express) {
   app.get("/api/truth/health", (_req: Request, res: Response) =>
@@ -12,28 +13,102 @@ export default function mountTruthRoutes(app: Express) {
   app.post("/api/truth/analyze-text", requireAuth, async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const projectId = (req.headers["x-project-id"] as string) || null;
-    const { text, title } = req.body || {};
+    const { text, title, captureIds } = req.body || {};
+    
+    if (!projectId) {
+      return res.status(400).json({ error: "Missing project context" });
+    }
+    
     const out = await analyzeTruthBundle({
       userId,
       projectId,
       input: { text, title },
     });
     if ((out as any).error) return res.status(400).json(out);
-    return res.json(out);
+
+    // Extract the result from analyzeTruthBundle
+    const result = (out as any).result;
+    if (!result?.title || !result?.summary || !result?.truth_chain) {
+      return res.status(400).json({ error: "Missing analysis result fields" });
+    }
+
+    // Promote to signal
+    try {
+      const { signalId } = await promoteTruthToSignal({
+        projectId,
+        createdBy: userId,
+        sourceCaptureIds: Array.isArray(captureIds) ? captureIds : [],
+        truthCheckId: (out as any).truthCheckId,
+        title: result.title || result.headline || title || "Untitled Analysis",
+        summary: result.summary,
+        truth_chain: result.truth_chain,
+        strategic_moves: result.strategic_moves || [],
+        cohorts: result.cohorts || [],
+        receipts: result.receipts || result.evidence || [],
+        confidence: result.confidence,
+        why_surfaced: result.why_this_surfaced,
+        origin: "analysis",
+        source_tag: "Truth Lab",
+        dedupeDays: Number(process.env.SIGNAL_DEDUPE_DAYS || 14),
+      });
+
+      return res.json({ ...out, signalId });
+    } catch (error: any) {
+      console.error("Failed to promote truth to signal:", error);
+      // Return the original result even if promotion fails
+      return res.json(out);
+    }
   });
 
   // Bundle analysis (URLs, screenshots, capture snippets)
   app.post("/api/truth/analyze-bundle", requireAuth, async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const projectId = (req.headers["x-project-id"] as string) || null;
-    const { title, text, urls, imageUrls, captureSnippets } = req.body || {};
+    const { title, text, urls, imageUrls, captureSnippets, captureIds } = req.body || {};
+    
+    if (!projectId) {
+      return res.status(400).json({ error: "Missing project context" });
+    }
+    
     const out = await analyzeTruthBundle({
       userId,
       projectId,
       input: { title, text, urls, imageUrls, captureSnippets },
     });
     if ((out as any).error) return res.status(400).json(out);
-    return res.json(out);
+
+    // Extract the result from analyzeTruthBundle
+    const result = (out as any).result;
+    if (!result?.title || !result?.summary || !result?.truth_chain) {
+      return res.status(400).json({ error: "Missing analysis result fields" });
+    }
+
+    // Promote to signal
+    try {
+      const { signalId } = await promoteTruthToSignal({
+        projectId,
+        createdBy: userId,
+        sourceCaptureIds: Array.isArray(captureIds) ? captureIds : [],
+        truthCheckId: (out as any).truthCheckId,
+        title: result.title || result.headline || title || "Untitled Analysis",
+        summary: result.summary,
+        truth_chain: result.truth_chain,
+        strategic_moves: result.strategic_moves || [],
+        cohorts: result.cohorts || [],
+        receipts: result.receipts || result.evidence || [],
+        confidence: result.confidence,
+        why_surfaced: result.why_this_surfaced,
+        origin: "analysis",
+        source_tag: "Truth Lab",
+        dedupeDays: Number(process.env.SIGNAL_DEDUPE_DAYS || 14),
+      });
+
+      return res.json({ ...out, signalId });
+    } catch (error: any) {
+      console.error("Failed to promote truth to signal:", error);
+      // Return the original result even if promotion fails
+      return res.json(out);
+    }
   });
 
   app.get("/api/truth/check/:id", requireAuth, async (req, res) => {

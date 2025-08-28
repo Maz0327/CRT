@@ -48,6 +48,7 @@ export function SignalCard({
         needsEdit && "ring-2 ring-amber-400/50 border-amber-200",
         className
       )}
+      data-signal-id={id}
     >
       {/* Status indicators */}
       <div className="absolute top-3 right-3 flex items-center gap-2">
