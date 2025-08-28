@@ -3,8 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { extractSource, analyzeText as legacyAnalyzeText, analyzeVisual, type TruthCheck, analyzeText } from "../services/truth";
 import { useProjectContext } from "../app/providers";
 import { useLocation } from "wouter";
+import { Filter } from "lucide-react";
 
 type Tab = "url" | "text" | "visual";
+type ReviewFilter = "all" | "unreviewed" | "confirmed" | "needs_edit";
 
 export function TruthLabPage() {
   const { currentProjectId } = useProjectContext();
@@ -16,6 +18,7 @@ export function TruthLabPage() {
   const [check, setCheck] = useState<TruthCheck | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
 
   const mExtract = useMutation({
     mutationFn: async () => {
@@ -63,6 +66,45 @@ export function TruthLabPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold mb-4">Truth Lab</h1>
+
+      {/* Review Filter */}
+      <div className="glass-card p-4 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="w-4 h-4" />
+          <span className="text-sm font-medium">Review Status Filter</span>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            className={`px-3 py-2 rounded text-sm ${reviewFilter==='all'?'bg-white/20':'bg-white/10'}`} 
+            onClick={()=>setReviewFilter("all")}
+          >
+            All Items
+          </button>
+          <button 
+            className={`px-3 py-2 rounded text-sm ${reviewFilter==='unreviewed'?'bg-purple-600/50':'bg-white/10'}`} 
+            onClick={()=>setReviewFilter("unreviewed")}
+          >
+            Needs Review
+          </button>
+          <button 
+            className={`px-3 py-2 rounded text-sm ${reviewFilter==='confirmed'?'bg-green-600/50':'bg-white/10'}`} 
+            onClick={()=>setReviewFilter("confirmed")}
+          >
+            Confirmed
+          </button>
+          <button 
+            className={`px-3 py-2 rounded text-sm ${reviewFilter==='needs_edit'?'bg-orange-600/50':'bg-white/10'}`} 
+            onClick={()=>setReviewFilter("needs_edit")}
+          >
+            Needs Edit
+          </button>
+        </div>
+        {reviewFilter !== 'all' && (
+          <div className="mt-2 text-xs text-white/70">
+            Showing items with status: {reviewFilter.replace('_', ' ')}
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-2 mb-4">
         <button className={`px-3 py-2 rounded ${tab==='url'?'bg-white/20':'bg-white/10'}`} onClick={()=>setTab("url")}>URL Extract</button>

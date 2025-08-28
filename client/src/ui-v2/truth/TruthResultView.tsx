@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Check, Edit3 } from "lucide-react";
 import { useTruthCheck } from "../hooks/useTruthCheck";
+import { reviewTruthCheck } from "../services/truth";
 import type { TruthChain } from "../types/truth";
 
 function Section({
@@ -33,6 +35,25 @@ function Section({
 
 export default function TruthResultView({ id }: { id: string }) {
   const { data, loading, err, reveal, chain, confidence } = useTruthCheck(id);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [showNeedEditForm, setShowNeedEditForm] = useState(false);
+  const [editNote, setEditNote] = useState("");
+
+  const handleReview = async (status: 'confirmed' | 'needs_edit', note?: string) => {
+    setReviewLoading(true);
+    try {
+      await reviewTruthCheck(id, { status, note });
+      // Force refresh the data by reloading the page or using a query refetch
+      window.location.reload();
+    } catch (error) {
+      console.error('Review failed:', error);
+      alert('Failed to review. Please try again.');
+    } finally {
+      setReviewLoading(false);
+      setShowNeedEditForm(false);
+      setEditNote("");
+    }
+  };
 
   if (loading) {
     return (
@@ -69,6 +90,7 @@ export default function TruthResultView({ id }: { id: string }) {
   const cohorts = data.check.result?.cohorts || [];
   const moves = data.check.result?.strategic_moves || [];
   const evidence = data.evidence || [];
+  const reviewStatus = (data.check as any).review_status || 'unreviewed';
 
   return (
     <div className="space-y-6">
@@ -85,6 +107,79 @@ export default function TruthResultView({ id }: { id: string }) {
           </div>
         )}
       </div>
+
+      {/* Review Actions */}
+      {reviewStatus === 'unreviewed' && (
+        <div className="rounded-2xl p-4 bg-purple-500/10 border border-purple-400/30">
+          <div className="text-xs uppercase tracking-wide text-purple-300 mb-3">Review Required</div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleReview('confirmed')}
+              disabled={reviewLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Check className="w-4 h-4" />
+              {reviewLoading ? 'Confirming...' : 'Confirm'}
+            </button>
+            <button
+              onClick={() => setShowNeedEditForm(true)}
+              disabled={reviewLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Edit3 className="w-4 h-4" />
+              Needs Edit
+            </button>
+          </div>
+          
+          {showNeedEditForm && (
+            <div className="mt-4 space-y-3">
+              <textarea
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+                placeholder="What needs to be edited? (optional)"
+                className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/50 resize-none"
+                rows={3}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleReview('needs_edit', editNote)}
+                  disabled={reviewLoading}
+                  className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50"
+                >
+                  Submit
+                </button>
+                <button
+                  onClick={() => setShowNeedEditForm(false)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Review Status Display */}
+      {reviewStatus !== 'unreviewed' && (
+        <div className={`rounded-2xl p-4 border ${
+          reviewStatus === 'confirmed' 
+            ? 'bg-green-500/10 border-green-400/30' 
+            : 'bg-orange-500/10 border-orange-400/30'
+        }`}>
+          <div className="text-xs uppercase tracking-wide text-white/60 mb-1">Status</div>
+          <div className={`font-medium ${
+            reviewStatus === 'confirmed' ? 'text-green-300' : 'text-orange-300'
+          }`}>
+            {reviewStatus === 'confirmed' ? 'Confirmed' : 'Needs Edit'}
+          </div>
+          {(data.check as any).review_note && (
+            <div className="mt-2 text-sm text-white/70">
+              Note: {(data.check as any).review_note}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Truth Chain */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

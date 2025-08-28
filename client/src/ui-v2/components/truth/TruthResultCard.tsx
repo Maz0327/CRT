@@ -14,12 +14,15 @@ interface TruthResultCardProps {
     input_preview: string;
     created_at: string;
     error?: string;
+    review_status?: string;
   };
   onClick?: () => void;
   className?: string;
 }
 
 export function TruthResultCard({ truthCheck, onClick, className }: TruthResultCardProps) {
+  const reviewStatus = truthCheck.review_status || 'unreviewed';
+  const isUnreviewed = reviewStatus === 'unreviewed';
   const getKindIcon = (kind: string) => {
     switch (kind) {
       case 'url': return <ExternalLink className="w-4 h-4" />;
@@ -51,6 +54,7 @@ export function TruthResultCard({ truthCheck, onClick, className }: TruthResultC
     <div
       className={cn(
         "frost-card border hover:frost-strong transition-all cursor-pointer",
+        isUnreviewed ? "ring-2 ring-purple-400/60 bg-purple-500/5" : "",
         className
       )}
       onClick={onClick}

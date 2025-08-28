@@ -73,4 +73,61 @@ export default function mountTruthRoutes(app: Express) {
       });
     }
   });
+
+  // Review truth check
+  app.post("/api/truth/:checkId/review", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const checkId = req.params.checkId;
+    const { status, note } = req.body || {};
+
+    // Validate status
+    if (!status || !['confirmed', 'needs_edit'].includes(status)) {
+      return res.status(400).json({ error: "status must be 'confirmed' or 'needs_edit'" });
+    }
+
+    try {
+      // First, check if the check exists and user has access
+      const existingCheck = await getTruthCheckById(checkId);
+      if (!existingCheck) {
+        return res.status(404).json({ error: "Truth check not found" });
+      }
+
+      // Check user access (ensure user owns this check)
+      if (existingCheck.check.user_id !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Update review fields using raw query for now
+      const { pg } = await import("../lib/pg");
+      const updateQuery = `
+        UPDATE public.truth_checks 
+        SET review_status = $1, review_note = $2, reviewed_by = $3, reviewed_at = NOW()
+        WHERE id = $4
+        RETURNING *
+      `;
+      
+      const { rows } = await pg.query(updateQuery, [
+        status,
+        note || null,
+        userId,
+        checkId
+      ]);
+
+      if (rows.length === 0) {
+        return res.status(404).json({ error: "Truth check not found" });
+      }
+
+      return res.json({ 
+        success: true, 
+        check: rows[0] 
+      });
+
+    } catch (error: any) {
+      console.error("Error reviewing truth check:", error);
+      return res.status(500).json({ 
+        error: "Failed to review truth check",
+        details: error.message 
+      });
+    }
+  });
 }

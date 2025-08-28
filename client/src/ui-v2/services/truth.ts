@@ -94,3 +94,13 @@ export function analyzeVisual(_id: ID, _opts?: any) {
 export function retryTruthCheck(_id: ID) {
   throw new Error("retryTruthCheck not in Step 37");
 }
+
+export async function reviewTruthCheck(checkId: string, data: { status: 'confirmed' | 'needs_edit'; note?: string }) {
+  const res = await fetch(`/api/truth/${checkId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`reviewTruthCheck failed: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; check: any }>;
+}
