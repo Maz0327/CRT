@@ -49,4 +49,28 @@ export default function mountTruthRoutes(app: Express) {
     }
     return res.json(found);
   });
+
+  // Group analysis route (placeholder)
+  app.post("/api/truth/analyze-group", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { groupId } = req.body || {};
+    
+    if (!groupId) {
+      return res.status(400).json({ error: "groupId is required" });
+    }
+
+    try {
+      // TODO: Implement group analysis logic
+      return res.json({ 
+        success: true, 
+        message: "Group analysis started",
+        groupId 
+      });
+    } catch (error: any) {
+      return res.status(500).json({ 
+        error: "Failed to start group analysis",
+        details: error.message 
+      });
+    }
+  });
 }
