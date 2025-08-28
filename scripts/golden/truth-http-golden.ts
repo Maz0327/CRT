@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { getSupabaseAccessToken } from "../auth/getToken";
 
-const API = process.env.API_URL || "http://172.31.102.130:5001";
+const API = process.env.API_URL || "http://localhost:5001";
 
 /**
  * Golden content: realistic, multi-sentence input so our narrative checks
