@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api } from "../lib/api";
 
 export type Signal = {
   id: string;
@@ -66,20 +66,17 @@ export async function listSignals(params: {
   if (params.projectId) searchParams.set('projectId', params.projectId);
   if (params.status) searchParams.set('status', params.status);
   
-  const response = await api.get<Signal[]>(`/api/signals?${searchParams.toString()}`);
-  return response || [];
+  return api.get(`/signals?${searchParams.toString()}`);
 }
 
-export async function createSignal(input: CreateSignalInput): Promise<Signal> {
-  return api.post<Signal>('/api/signals', input);
+export async function createSignal(payload: any) {
+  return api.post("/signals", payload);
 }
 
-export async function confirmSignal(id: string): Promise<Signal> {
-  return api.post<Signal>(`/api/signals/${id}/confirm`);
+export async function confirmSignal(id: string) {
+  return api.post(`/signals/${id}/confirm`, {});
 }
 
-export async function needsEditSignal(id: string, notes?: string): Promise<Signal> {
-  return api.post<Signal>(`/api/signals/${id}/needs-edit`, {
-    notes: notes || null
-  });
+export async function needsEditSignal(id: string, notes?: string) {
+  return api.post(`/signals/${id}/needs-edit`, { notes });
 }

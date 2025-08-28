@@ -21,6 +21,9 @@ export function buildApiRouter() {
   router.use("/briefs", briefsRouter);
   router.use("/google", googleExportsRouter);
 
+  // Step 44: Mount signals routes
+  router.use("/signals", registerSignalRoutes);
+
   // Lovable UI routes
   setupSettingsRoutes(router as any);
   setupAnnotationsRoutes(router as any);

@@ -146,8 +146,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const projectsRouter = (await import("./routes/projects")).default;
   app.use("/api", projectsRouter);
   
-  // Step 43: Mount signals router
-  registerSignalRoutes(app);
+  // Step 44: Mount signals router
+  const signalsRouter = (await import("./routes/signals")).default;
+  app.use("/api/signals", signalsRouter);
   
   // Register legacy API routes (non-conflicting ones)
   // registerAuthRoutes(app); // Now using new mountAuthRoutes in index.ts

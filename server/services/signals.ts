@@ -1,189 +1,96 @@
-import { pg } from "../lib/pg";
-import { recordSignalFeedback } from "./learning";
+import { many, one } from "../lib/db";
+import type { SignalCreateInput, SignalRecord, SignalStatus, TruthChain } from "../types/signals";
 
-export type Signal = {
-  id: string;
-  project_id: string;
-  created_by: string;
-  source_capture_ids: string[];
-  truth_check_id?: string;
-  title: string;
-  summary: string;
-  truth_fact?: string;
-  truth_observation?: string;
-  truth_insight?: string;
-  truth_human_truth?: string;
-  truth_cultural_moment?: string;
-  strategic_moves: string[];
-  cohorts: string[];
-  receipts: Array<{
-    quote: string;
-    url: string;
-    timestamp: string;
-    source: string;
-  }>;
-  receipts_count?: number;
-  confidence?: number;
-  why_surfaced?: string;
-  status: "unreviewed" | "confirmed" | "needs_edit";
-  origin: string;
-  source_tag?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type CreateSignalInput = {
-  projectId: string;
-  created_by: string;
-  source_capture_ids?: string[];
-  truth_check_id?: string;
-  title: string;
-  summary: string;
-  truth_chain?: {
-    fact: string;
-    observation: string;
-    insight: string;
-    human_truth: string;
-    cultural_moment: string;
+function unpackTruth(t?: TruthChain) {
+  return {
+    fact: t?.fact ?? null,
+    observation: t?.observation ?? null,
+    insight: t?.insight ?? null,
+    human_truth: t?.human_truth ?? null,
+    cultural_moment: t?.cultural_moment ?? null,
   };
-  strategic_moves?: string[];
-  cohorts?: string[];
-  receipts?: Array<{
-    quote: string;
-    url: string;
-    timestamp: string;
-    source: string;
-  }>;
-  confidence?: number;
-  why_surfaced?: string;
-  origin?: string;
-  source_tag?: string;
-};
-
-export async function listSignals(opts: { userId: string; projectId?: string; status?: string }) {
-  const params: any[] = [opts.userId];
-  let i = 2;
-  let where = "created_by = $1";
-  if (opts.projectId) { where += ` AND project_id = $${i++}`; params.push(opts.projectId); }
-  if (opts.status) { where += ` AND status = $${i++}`; params.push(opts.status); }
-  
-  const { rows } = await pg.query(
-    `SELECT * FROM public.signals WHERE ${where} ORDER BY updated_at DESC LIMIT 200`,
-    params
-  );
-  return rows;
 }
 
-export async function createSignal(input: CreateSignalInput): Promise<Signal> {
-  const { rows } = await pg.query(
-    `INSERT INTO public.signals
-     (project_id, created_by, source_capture_ids, truth_check_id, title, summary, truth_fact, truth_observation, truth_insight, truth_human_truth, truth_cultural_moment, strategic_moves, cohorts, receipts, confidence, why_surfaced, origin, source_tag)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-     RETURNING *`,
+export async function createSignal(userId: string, input: SignalCreateInput): Promise<SignalRecord> {
+  if (!input.projectId) throw new Error("projectId required");
+  if (!input.title || input.title.length > 120) throw new Error("title required (<=120 chars)");
+  if (!input.summary || input.summary.length > 800) throw new Error("summary required (<=800 chars)");
+  const truth = unpackTruth(input.truth_chain);
+
+  const row = await one<SignalRecord>(
+    `
+    insert into public.signals (
+      project_id, created_by, source_capture_ids, truth_check_id,
+      title, summary,
+      truth_fact, truth_observation, truth_insight, truth_human_truth, truth_cultural_moment,
+      strategic_moves, cohorts, receipts, confidence, why_surfaced, status, origin, source_tag
+    )
+    values (
+      $1, $2, coalesce($3,'{}'::text[]), $4,
+      $5, $6,
+      $7, $8, $9, $10, $11,
+      $12, $13, coalesce($14,'[]'::jsonb), $15, $16, 'unreviewed', $17, $18
+    )
+    returning *
+    `,
     [
       input.projectId,
-      input.created_by,
-      input.source_capture_ids || [],
-      input.truth_check_id || null,
+      userId,
+      input.source_capture_ids ?? null,
+      input.truth_check_id ?? null,
       input.title,
       input.summary,
-      input.truth_chain?.fact || null,
-      input.truth_chain?.observation || null,
-      input.truth_chain?.insight || null,
-      input.truth_chain?.human_truth || null,
-      input.truth_chain?.cultural_moment || null,
-      input.strategic_moves || [],
-      input.cohorts || [],
-      JSON.stringify(input.receipts || []),
-      input.confidence || null,
-      input.why_surfaced || null,
-      input.origin || 'analysis',
-      input.source_tag || null
+      truth.fact,
+      truth.observation,
+      truth.insight,
+      truth.human_truth,
+      truth.cultural_moment,
+      input.strategic_moves ?? null,
+      input.cohorts ?? null,
+      input.receipts ?? null,
+      input.confidence ?? null,
+      input.why_surfaced ?? null,
+      input.origin ?? "analysis",
+      input.source_tag ?? null,
     ]
   );
-  return rows[0];
+  return row;
 }
 
-export async function confirmSignal(signalId: string, userId: string): Promise<Signal | null> {
-  const client = await pg.getClient();
-  try {
-    await client.query('BEGIN');
-    
-    // Update signal status
-    const { rows } = await client.query(
-      `UPDATE public.signals SET status = 'confirmed' 
-       WHERE id = $1 AND created_by = $2 RETURNING *`,
-      [signalId, userId]
-    );
-    
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      return null;
-    }
-    
-    // Insert feedback record
-    await client.query(
-      `INSERT INTO public.signal_feedback (signal_id, user_id, action) 
-       VALUES ($1, $2, 'confirm')`,
-      [signalId, userId]
-    );
-    
-    await client.query('COMMIT');
-    
-    // Record learning event
-    await recordSignalFeedback({
-      projectId: rows[0].project_id,
-      signalId,
-      action: 'confirm'
-    });
-    
-    return rows[0];
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+export async function confirmSignal(userId: string, signalId: string): Promise<SignalRecord> {
+  const row = await one<SignalRecord>(
+    `update public.signals set status='confirmed' where id=$1 returning *`,
+    [signalId]
+  );
+  await one(
+    `insert into public.signal_feedback (signal_id, user_id, action) values ($1,$2,'confirm') returning id`,
+    [signalId, userId]
+  );
+  return row;
 }
 
-export async function needsEditSignal(signalId: string, userId: string, notes?: string): Promise<Signal | null> {
-  const client = await pg.getClient();
-  try {
-    await client.query('BEGIN');
-    
-    // Update signal status
-    const { rows } = await client.query(
-      `UPDATE public.signals SET status = 'needs_edit' 
-       WHERE id = $1 AND created_by = $2 RETURNING *`,
-      [signalId, userId]
+export async function needsEditSignal(userId: string, signalId: string, notes?: string): Promise<SignalRecord> {
+  const row = await one<SignalRecord>(
+    `update public.signals set status='needs_edit' where id=$1 returning *`,
+    [signalId]
+  );
+  await one(
+    `insert into public.signal_feedback (signal_id, user_id, action, notes) values ($1,$2,'needs_edit',$3) returning id`,
+    [signalId, userId, notes ?? null]
+  );
+  return row;
+}
+
+export async function listSignals(_userId: string, projectId: string, status?: SignalStatus): Promise<SignalRecord[]> {
+  if (!projectId) throw new Error("projectId required");
+  if (status) {
+    return many<SignalRecord>(
+      `select * from public.signals where project_id=$1 and status=$2 order by updated_at desc limit 200`,
+      [projectId, status]
     );
-    
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      return null;
-    }
-    
-    // Insert feedback record
-    await client.query(
-      `INSERT INTO public.signal_feedback (signal_id, user_id, action, notes) 
-       VALUES ($1, $2, 'needs_edit', $3)`,
-      [signalId, userId, notes || null]
-    );
-    
-    await client.query('COMMIT');
-    
-    // Record learning event
-    await recordSignalFeedback({
-      projectId: rows[0].project_id,
-      signalId,
-      action: 'needs_edit'
-    });
-    
-    return rows[0];
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
   }
+  return many<SignalRecord>(
+    `select * from public.signals where project_id=$1 order by updated_at desc limit 200`,
+    [projectId]
+  );
 }
