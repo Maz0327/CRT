@@ -7,6 +7,10 @@ import {
   listIngestions,
   getIngestionCount
 } from "../services/feedsIngest";
+import {
+  materializeFeedItemToCapture,
+  enqueueTruthAnalysisForCapture
+} from "../services/captureMaterializer";
 
 // Input validation schemas
 const sendToInboxSchema = z.object({
@@ -21,6 +25,11 @@ const ingestionStatusSchema = z.object({
 
 const workspaceIdSchema = z.string().uuid();
 const limitSchema = z.coerce.number().min(1).max(50).default(10);
+const feedItemIdSchema = z.string().uuid();
+
+const materializeSchema = z.object({
+  runTruth: z.boolean().optional().default(false)
+});
 
 export default function mountFeedsIngestRoutes(app: Express) {
   
@@ -163,6 +172,77 @@ export default function mountFeedsIngestRoutes(app: Express) {
       
       return res.status(500).json({
         error: "Failed to get ingestion count",
+        details: error.message
+      });
+    }
+  });
+
+  // Materialize feed item to capture (Step 49)
+  app.post("/api/feeds/items/:itemId/materialize", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const itemId = feedItemIdSchema.parse(req.params.itemId);
+      const body = materializeSchema.parse(req.body);
+      const projectId = req.query.projectId as string;
+      
+      if (!projectId) {
+        return res.status(422).json({
+          error: "Validation error",
+          details: "projectId query parameter is required"
+        });
+      }
+      
+      const result = await materializeFeedItemToCapture({
+        projectId,
+        feedItemId: itemId,
+        userId
+      });
+      
+      // If user requested truth analysis, enqueue it
+      if (body.runTruth && result.status === 'created') {
+        try {
+          await enqueueTruthAnalysisForCapture(result.captureId, projectId);
+        } catch (error) {
+          console.warn(`[feeds-ingest] Truth analysis enqueue failed for capture ${result.captureId}:`, error);
+          // Don't fail the request if truth analysis fails
+        }
+      }
+      
+      console.log(`[feeds-ingest] Materialized feed item ${itemId} to capture ${result.captureId} (status: ${result.status})`);
+      
+      return res.json({
+        success: true,
+        status: result.status,
+        captureId: result.captureId,
+        truthRequested: body.runTruth
+      });
+      
+    } catch (error: any) {
+      console.error("[feeds-ingest] Error materializing feed item:", error);
+      
+      if (error.message === 'ITEM_NOT_INGESTED') {
+        return res.status(400).json({
+          error: "Item not ingested for this project",
+          details: "The feed item must be sent to inbox before it can be materialized"
+        });
+      }
+      
+      if (error.message === 'FEED_ITEM_NOT_FOUND') {
+        return res.status(404).json({
+          error: "Feed item not found",
+          details: "The specified feed item does not exist or doesn't belong to this project"
+        });
+      }
+      
+      if (error.name === 'ZodError') {
+        return res.status(422).json({
+          error: "Validation error",
+          details: error.errors
+        });
+      }
+      
+      return res.status(500).json({
+        error: "Failed to materialize feed item",
         details: error.message
       });
     }

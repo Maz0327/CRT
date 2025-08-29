@@ -10,6 +10,7 @@ import { requestLogger } from "./middleware/logging";
 import { productionMonitor } from "./monitoring/productionMonitor";
 import mountTruthRoutes from "./routes/truth";
 import mountFeedsRoutes from "./routes/feeds";
+import mountFeedsIngestRoutes from "./routes/feeds-ingest";
 
 // Express Request typing for test mode (keep it loose to avoid TS friction here)
 type AnyReq = express.Request & { user?: any; projectId?: string };
@@ -58,6 +59,9 @@ export function createApp(opts?: { testMode?: boolean }) {
 
   // Mount feeds routes
   mountFeedsRoutes(app);
+  
+  // Mount feeds ingest routes
+  mountFeedsIngestRoutes(app);
 
   // Main API & routes
   registerRoutes(app);
