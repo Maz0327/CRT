@@ -39,7 +39,7 @@ export function startTruthGroupWorker(pool: Pool, opts: { intervalMs: number }) 
   }
 
   // Reduce frequency from 4 seconds to 30 seconds in development
-    const interval = process.env.NODE_ENV === 'development' ? 30000 : 4000;
-    setInterval(() => this.processGroups(), interval);
-  console.log(`[truth-group-worker] started, interval=${intervalMs}ms`);
+  const interval = process.env.NODE_ENV === 'development' ? 30000 : Math.max(1000, intervalMs);
+  setInterval(tick, interval);
+  console.log(`[truth-group-worker] started, interval=${interval}ms`);
 }
