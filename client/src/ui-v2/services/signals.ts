@@ -61,12 +61,21 @@ export type CreateSignalInput = {
 export async function listSignals(params: {
   projectId?: string;
   status?: 'unreviewed' | 'confirmed' | 'needs_edit';
+  limit?: number;
 }): Promise<Signal[]> {
   const searchParams = new URLSearchParams();
   if (params.projectId) searchParams.set('projectId', params.projectId);
   if (params.status) searchParams.set('status', params.status);
+  if (params.limit) searchParams.set('limit', params.limit.toString());
   
-  return api.get(`/signals?${searchParams.toString()}`);
+  const signals = await api.get<Signal[]>(`/signals?${searchParams.toString()}`);
+  
+  // Client-side sorting by updated_at desc if server doesn't handle it
+  return signals.sort((a, b) => {
+    const dateA = new Date(a.updated_at || a.created_at || 0);
+    const dateB = new Date(b.updated_at || b.created_at || 0);
+    return dateB.getTime() - dateA.getTime();
+  });
 }
 
 export async function createSignal(payload: any) {

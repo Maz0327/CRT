@@ -10,18 +10,24 @@ import {
   Zap
 } from 'lucide-react';
 import { GlassCard } from '../components/primitives/GlassCard';
-// import { useProjectContext } from '../app/providers';
+import { useProjectContext } from '../context/ProjectContext';
 import { useCaptures } from '../hooks/useCaptures';
 import { useMoments } from '../hooks/useMoments';
 import { useBriefs } from '../hooks/useBriefs';
+import { useSignals } from '../hooks/useSignals';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { Receipt, ChevronDown, ChevronRight, ExternalLink, Layers } from 'lucide-react';
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
-  const currentProjectId = null; // Default to showing all projects
+  const { currentProjectId } = useProjectContext();
   
   const capturesQuery = useCaptures({});
   const momentsHook = useMoments({ projectId: currentProjectId || undefined });
   const briefsHook = useBriefs({ projectId: currentProjectId || undefined });
+  const signalsQuery = useSignals(currentProjectId || undefined, 'confirmed', 5);
 
   // Null-safety guards to prevent crashes - matching actual hook return types
   const captures = Array.isArray(capturesQuery?.data) ? capturesQuery.data : [];
@@ -114,10 +120,10 @@ export default function DashboardPage() {
           transition={{ duration: 0.6 }}
         >
           <h1 className="text-xl md:text-2xl font-semibold mb-3 text-ink">
-            Dashboard Overview
+            Your World Today
           </h1>
           <p className="text-sm md:text-base text-ink/70 max-w-2xl mx-auto px-4 leading-relaxed">
-            Monitor your content performance and track strategic insights across all projects.
+            Top signals for your current project
           </p>
         </motion.div>
 
@@ -175,6 +181,13 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Top Signals */}
+        <TopSignalsSection 
+          signalsQuery={signalsQuery}
+          currentProjectId={currentProjectId}
+          setLocation={setLocation}
+        />
 
         {/* Recent Briefs */}
         {recentBriefs.length > 0 && (
@@ -244,6 +257,147 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// TopSignalsSection Component
+function TopSignalsSection({ signalsQuery, currentProjectId, setLocation }: {
+  signalsQuery: any;
+  currentProjectId: string | null;
+  setLocation: (path: string) => void;
+}) {
+  const { data: signals = [], isLoading, error } = signalsQuery;
+
+  if (!currentProjectId) {
+    return (
+      <div>
+        <h2 className="text-base md:text-lg font-semibold tracking-tight px-1 text-ink/90 mb-6">Top Signals</h2>
+        <GlassCard>
+          <div className="text-center py-8">
+            <p className="text-ink/60">Select a project to view your top signals</p>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div>
+        <h2 className="text-base md:text-lg font-semibold tracking-tight px-1 text-ink/90 mb-6">Top Signals</h2>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <GlassCard key={i}>
+              <LoadingSkeleton className="h-20" />
+            </GlassCard>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h2 className="text-base md:text-lg font-semibold tracking-tight px-1 text-ink/90 mb-6">Top Signals</h2>
+        <GlassCard>
+          <div className="text-center py-8">
+            <p className="text-red-400">Error loading signals: {error.message}</p>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (signals.length === 0) {
+    return (
+      <div>
+        <h2 className="text-base md:text-lg font-semibold tracking-tight px-1 text-ink/90 mb-6">Top Signals</h2>
+        <GlassCard>
+          <div className="text-center py-8">
+            <p className="text-ink/60">No confirmed signals yet. Create your first signal to get started!</p>
+            <Button
+              onClick={() => setLocation('/signals')}
+              className="mt-4"
+            >
+              View Signals Inbox
+            </Button>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-base md:text-lg font-semibold tracking-tight px-1 text-ink/90">Top Signals</h2>
+        <button
+          onClick={() => setLocation('/signals')}
+          className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-all duration-200 hover:underline"
+        >
+          View all →
+        </button>
+      </div>
+      
+      <div className="space-y-4">
+        {signals.map((signal: any, index: number) => (
+          <motion.div
+            key={signal.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: index * 0.1 }}
+          >
+            <GlassCard hover>
+              <div className="cursor-pointer" onClick={() => setLocation(`/signals/${signal.id}`)}>
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm md:text-base font-semibold line-clamp-2 leading-tight mb-2">
+                        {signal.title}
+                      </h3>
+                      <p className="text-xs md:text-sm text-ink/70 line-clamp-2 leading-relaxed">
+                        {signal.summary}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                      Confirmed
+                    </Badge>
+                  </div>
+
+                  {/* Truth Chain */}
+                  {signal.truth_cultural_moment && (
+                    <div className="border-l-2 border-blue-500/30 pl-3">
+                      <p className="text-xs md:text-sm text-blue-400 font-medium">
+                        {signal.truth_cultural_moment}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Meta Info */}
+                  <div className="flex items-center gap-4 text-xs text-ink/60">
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-3 h-3" />
+                      <span>{signal.cohorts?.length || 0} cohorts</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Receipt className="w-3 h-3" />
+                      <span>{signal.receipts?.length || 0} receipts</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>
+                        {signal.confidence ? `${Math.round(signal.confidence * 100)}% confidence` : 'No confidence score'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+        ))}
       </div>
     </div>
   );

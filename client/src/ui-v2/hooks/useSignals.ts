@@ -9,10 +9,10 @@ import {
   type CreateSignalInput
 } from '../services/signals';
 
-export function useSignals(projectId?: string, status?: 'unreviewed' | 'confirmed' | 'needs_edit') {
+export function useSignals(projectId?: string, status?: 'unreviewed' | 'confirmed' | 'needs_edit', limit?: number) {
   return useQuery({
-    queryKey: ['/api/signals', projectId, status],
-    queryFn: () => listSignals({ projectId, status }),
+    queryKey: ['/api/signals', projectId, status, limit],
+    queryFn: () => listSignals({ projectId, status, limit }),
     enabled: !!projectId
   });
 }
