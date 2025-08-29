@@ -9,6 +9,7 @@ import { projectScope } from "./middleware/project-scope";
 import { requestLogger } from "./middleware/logging";
 import { productionMonitor } from "./monitoring/productionMonitor";
 import mountTruthRoutes from "./routes/truth";
+import mountFeedsRoutes from "./routes/feeds";
 
 // Express Request typing for test mode (keep it loose to avoid TS friction here)
 type AnyReq = express.Request & { user?: any; projectId?: string };
@@ -54,6 +55,9 @@ export function createApp(opts?: { testMode?: boolean }) {
 
   // Mount truth routes (needed for API tests)
   mountTruthRoutes(app);
+
+  // Mount feeds routes
+  mountFeedsRoutes(app);
 
   // Main API & routes
   registerRoutes(app);

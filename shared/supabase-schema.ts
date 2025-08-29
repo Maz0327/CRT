@@ -649,3 +649,66 @@ export const insertCaptureAnalysisSchema = createInsertSchema(captureAnalyses).o
 
 export type CaptureAnalysis = typeof captureAnalyses.$inferSelect;
 export type InsertCaptureAnalysis = z.infer<typeof insertCaptureAnalysisSchema>;
+
+// 19. Feeds table - RSS/Atom feed registry
+export const feeds = pgTable("feeds", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  feedUrl: text("feed_url").notNull(),
+  title: text("title"),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  status: text("status").default("healthy"), // 'healthy' | 'error' | 'stale'
+  lastPulledAt: timestamp("last_pulled_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  metadata: jsonb("metadata").default('{}'),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  projectIdx: index("idx_feeds_project_id").on(table.projectId),
+  createdByIdx: index("idx_feeds_created_by").on(table.createdBy),
+  statusIdx: index("idx_feeds_status").on(table.status),
+  // Unique constraint for project_id + feed_url
+  projectFeedUnique: index("idx_feeds_project_feed_unique").on(table.projectId, table.feedUrl),
+}));
+
+// 20. Feed Items table - Individual items from feeds
+export const feedItems = pgTable("feed_items", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  feedId: uuid("feed_id").notNull().references(() => feeds.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  author: text("author"),
+  summary: text("summary"),
+  content: text("content"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  raw: jsonb("raw").default('{}'), // Raw RSS/Atom item data
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  feedIdx: index("idx_feed_items_feed_id").on(table.feedId),
+  projectIdx: index("idx_feed_items_project_id").on(table.projectId),
+  publishedAtIdx: index("idx_feed_items_published_at").on(table.publishedAt),
+  // Unique constraint for feed_id + url to prevent duplicates
+  feedUrlUnique: index("idx_feed_items_feed_url_unique").on(table.feedId, table.url),
+}));
+
+// Schema exports for feeds
+export const insertFeedSchema = createInsertSchema(feeds).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFeedItemSchema = createInsertSchema(feedItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type exports for feeds
+export type Feed = typeof feeds.$inferSelect;
+export type InsertFeed = z.infer<typeof insertFeedSchema>;
+
+export type FeedItem = typeof feedItems.$inferSelect;
+export type InsertFeedItem = z.infer<typeof insertFeedItemSchema>;

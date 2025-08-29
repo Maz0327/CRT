@@ -126,26 +126,19 @@ export async function promoteTruthToSignal(args: PromoteArgs): Promise<{ signalI
     const res = await client.query(
       `
       insert into public.signals (
-        project_id, created_by, source_capture_ids, truth_check_id,
-        title, summary,
-        truth_fact, truth_observation, truth_insight, truth_human_truth, truth_cultural_moment,
-        strategic_moves, cohorts, receipts, confidence, why_surfaced,
-        origin, source_tag, status, content_hash
+        project_id, user_id, capture_id, title, summary, truth_chain,
+        cohorts, strategic_moves, evidence, confidence, why_this_surfaced,
+        source, origin, status, content_hash
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'unreviewed',$19)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'unreviewed',$14)
       returning id
       `,
       [
-        projectId, createdBy, sourceCaptureIds, truthCheckId,
-        title, summary,
-        truth_chain.fact ?? null,
-        truth_chain.observation ?? null,
-        truth_chain.insight ?? null,
-        truth_chain.human_truth ?? null,
-        truth_chain.cultural_moment ?? null,
-        strategic_moves, cohorts, JSON.stringify(receipts || []),
+        projectId, createdBy, sourceCaptureIds?.[0] ?? null,
+        title, summary, JSON.stringify(truth_chain),
+        cohorts, strategic_moves, receipts || [],
         confidence ?? null, why_surfaced ?? null,
-        origin, source_tag, hash,
+        "api", origin, hash,
       ]
     );
 
