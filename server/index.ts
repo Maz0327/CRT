@@ -1,4 +1,5 @@
 import mountProdFrontend from "./prod-frontend";
+import { createApp } from "./app";
 import mountHealth from "./health";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
@@ -62,7 +63,7 @@ const sessionPool = new Pool({
       : false,
 });
 
-const app = express();
+const app = createApp();
 (app as any).dbPool = sessionPool; // make pool accessible to routers when needed
 
 // immediately after `const app = express();`
@@ -399,6 +400,8 @@ if (process.env.NODE_ENV === "production") { mountProdFrontend(app); }
 })();
 
 export default app;
+
+export { createApp } from "./app";
 
 // --- DEV: force-remove static client serving (use Vite instead) ---
 if (process.env.NODE_ENV !== "production") {
