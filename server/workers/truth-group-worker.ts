@@ -30,6 +30,7 @@ export function startTruthGroupWorker(pool: Pool, opts: { intervalMs: number }) 
       } catch (err: any) {
         await pool.query(`update analysis_jobs set status='error', error=$2, updated_at=now() where id=$1`, [job.id, String(err?.message || err)]);
         await pool.query(`update truth_checks set status='error', error=$2, completed_at=now() where group_id=$1 and status in ('pending','running')`, [job.target_id, String(err?.message || err)]);
+        await pool.query(`update analysis_jobs set status='error', error=$2, updated_at=now() where id=$1`, [job.id, String(err?.message || err)]);
         console.error("[truth-group-worker] job failed", job.id, err);
       }
     } finally {
@@ -37,6 +38,8 @@ export function startTruthGroupWorker(pool: Pool, opts: { intervalMs: number }) 
     }
   }
 
-  setInterval(tick, Math.max(1000, intervalMs));
+  // Reduce frequency from 4 seconds to 30 seconds in development
+    const interval = process.env.NODE_ENV === 'development' ? 30000 : 4000;
+    setInterval(() => this.processGroups(), interval);
   console.log(`[truth-group-worker] started, interval=${intervalMs}ms`);
 }

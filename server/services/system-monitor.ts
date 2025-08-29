@@ -43,11 +43,11 @@ class SystemMonitor {
   private startTime = Date.now();
 
   constructor() {
-    // Collect system metrics every minute
-    setInterval(() => this.collectMetrics(), 60 * 1000);
+    // Collect system metrics every 5 minutes (reduced from 1 minute)
+    setInterval(() => this.collectMetrics(), 5 * 60 * 1000);
     
-    // Cleanup old data every hour
-    setInterval(() => this.cleanup(), 60 * 60 * 1000);
+    // Cleanup old data every 30 minutes (increased frequency)
+    setInterval(() => this.cleanup(), 30 * 60 * 1000);
     
     // Initial collection
     this.collectMetrics();
@@ -91,14 +91,26 @@ class SystemMonitor {
   }
 
   private cleanup() {
-    // Remove requests older than 24 hours
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Remove requests older than 1 hour (reduced from 24 hours)
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000);
     this.requests = this.requests.filter(req => req.timestamp > cutoff);
     
-    // Clean up inactive users
-    // This is simplified - in production you'd track last activity time
-    if (this.activeUsers.size > 100) {
+    // Keep only last 100 requests (reduced from 1000)
+    if (this.requests.length > 100) {
+      this.requests = this.requests.slice(-100);
+    }
+    
+    // Keep only last 50 active users (reduced from 100)
+    if (this.activeUsers.size > 50) {
+      const usersArray = Array.from(this.activeUsers);
       this.activeUsers.clear();
+      // Keep most recent 25 users
+      usersArray.slice(-25).forEach(user => this.activeUsers.add(user));
+    }
+    
+    // Keep only last 6 hours of metrics (reduced from 24 hours)
+    if (this.metrics.length > 72) {
+      this.metrics = this.metrics.slice(-72);
     }
   }
 

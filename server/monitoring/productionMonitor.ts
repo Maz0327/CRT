@@ -123,6 +123,11 @@ export class ProductionMonitor {
    * Middleware to track API request metrics
    */
   trackApiRequest = (req: Request, res: Response, next: Function) => {
+    // Skip tracking in development to reduce overhead
+    if (process.env.NODE_ENV === 'development') {
+      return next();
+    }
+    
     const startTime = Date.now();
 
     res.on('finish', () => {
