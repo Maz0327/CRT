@@ -1,62 +1,82 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listFeeds, createFeed, updateFeed, deleteFeed } from '../services/feeds';
+import { listFeeds, createFeed, updateFeed, deleteFeed, pullFeed, listFeedItems, FeedData, FeedItemData } from '../services/feeds';
 import { useProjectContext } from "../app/providers";
-import { UserFeed } from '../types';
 
-export function useFeeds(params?: { projectId?: string; active?: boolean }) {
+export function useFeeds(projectId?: string) {
   const { currentProjectId } = useProjectContext();
-  const withScope = { ...(params || {}), projectId: (params?.projectId ?? currentProjectId) || undefined };
+  const effectiveProjectId = projectId || currentProjectId;
   const queryClient = useQueryClient();
 
-  const { data: feeds = [], isLoading, error } = useQuery({
-    queryKey: ['feeds', withScope],
-    queryFn: () => listFeeds(withScope),
+  const { data: feedsData, isLoading, error } = useQuery({
+    queryKey: ['feeds', effectiveProjectId],
+    queryFn: () => listFeeds(effectiveProjectId || ''),
+    enabled: !!effectiveProjectId,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
+  const feeds = feedsData?.feeds || [];
+
   const createMutation = useMutation({
     mutationFn: createFeed,
-    onSuccess: (newFeed) => {
-      queryClient.setQueryData(['feeds'], (old: UserFeed[] = []) => [newFeed, ...old]);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds', effectiveProjectId] });
+    },
+  });
+
+  const pullMutation = useMutation({
+    mutationFn: ({ feedId, projectId }: { feedId: string, projectId: string }) => 
+      pullFeed(feedId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds', effectiveProjectId] });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Partial<UserFeed>) =>
+    mutationFn: ({ id, ...data }: { id: string } & any) =>
       updateFeed(id, data),
-    onSuccess: (updatedFeed) => {
-      queryClient.setQueryData(['feeds'], (old: UserFeed[] = []) =>
-        old.map((f) => (f.id === updatedFeed.id ? updatedFeed : f))
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds', effectiveProjectId] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteFeed,
-    onSuccess: (_, deletedId) => {
-      queryClient.setQueryData(['feeds'], (old: UserFeed[] = []) =>
-        old.filter((f) => f.id !== deletedId)
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds', effectiveProjectId] });
     },
   });
-
-  const toggleFeed = async (id: string) => {
-    const feed = feeds.find((f) => f.id === id);
-    if (feed) {
-      return updateMutation.mutateAsync({ id, isActive: !feed.isActive });
-    }
-  };
 
   return {
     feeds,
     isLoading,
     error,
     createFeed: createMutation.mutateAsync,
+    pullFeed: pullMutation.mutateAsync,
     updateFeed: updateMutation.mutateAsync,
     deleteFeed: deleteMutation.mutateAsync,
-    toggleFeed,
     isCreating: createMutation.isPending,
+    isPulling: pullMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+  };
+}
+
+export function useFeedItems(feedId: string, projectId?: string, limit: number = 5) {
+  const { currentProjectId } = useProjectContext();
+  const effectiveProjectId = projectId || currentProjectId;
+
+  const { data: itemsData, isLoading, error } = useQuery({
+    queryKey: ['feed-items', feedId, effectiveProjectId, limit],
+    queryFn: () => listFeedItems(feedId, effectiveProjectId || '', limit),
+    enabled: !!feedId && !!effectiveProjectId,
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+
+  const items = itemsData?.items || [];
+
+  return {
+    items,
+    isLoading,
+    error,
   };
 }
