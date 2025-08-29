@@ -712,3 +712,29 @@ export type InsertFeed = z.infer<typeof insertFeedSchema>;
 
 export type FeedItem = typeof feedItems.$inferSelect;
 export type InsertFeedItem = z.infer<typeof insertFeedItemSchema>;
+
+// 21. Feed Item Ingestions table - Tracks which feed items have been sent to inbox
+export const feedItemIngestions = pgTable("feed_item_ingestions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: uuid("workspace_id").notNull(), // References workspaces.id
+  feedItemId: uuid("feed_item_id").notNull(), // References feed_items.id
+  sentBy: uuid("sent_by").notNull(), // References users.id
+  captureId: uuid("capture_id"), // Reserved for Step 49 - References captures.id
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  workspaceIdx: index("idx_feed_item_ingestions_workspace_id").on(table.workspaceId),
+  feedItemIdx: index("idx_feed_item_ingestions_feed_item_id").on(table.feedItemId),
+  sentByIdx: index("idx_feed_item_ingestions_sent_by").on(table.sentBy),
+  // Unique constraint to prevent duplicate ingestions
+  workspaceFeedItemUnique: index("idx_feed_item_ingestions_unique").on(table.workspaceId, table.feedItemId),
+}));
+
+// Schema exports for feed item ingestions
+export const insertFeedItemIngestionSchema = createInsertSchema(feedItemIngestions).omit({
+  id: true,
+  sentAt: true,
+});
+
+// Type exports for feed item ingestions
+export type FeedItemIngestion = typeof feedItemIngestions.$inferSelect;
+export type InsertFeedItemIngestion = z.infer<typeof insertFeedItemIngestionSchema>;
