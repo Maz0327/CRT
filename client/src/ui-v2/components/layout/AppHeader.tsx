@@ -21,6 +21,7 @@ import { ThemeToggle } from '../primitives/ThemeToggle';
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard' },
   { to: '/captures', icon: Inbox, label: 'Captures' },
+  { to: '/inbox', icon: Bell, label: 'Inbox' },
   { to: '/moments', icon: Radar, label: 'Moments' },
   { to: '/briefs', icon: FileText, label: 'Briefs' },
   { to: '/feeds', icon: Rss, label: 'Feeds' },

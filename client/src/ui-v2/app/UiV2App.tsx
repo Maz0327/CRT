@@ -15,6 +15,7 @@ import { ProjectUploadPage } from '../pages/ProjectUploadPage';
 import { TruthLabPage } from '../pages/TruthLabPage';
 import { TruthDetailPage } from '../pages/TruthDetailPage';
 import TruthResultPage from '../pages/TruthResultPage';
+import SignalsInboxPage from '../pages/SignalsInboxPage';
 import { useAuth } from '../hooks/useAuth';
 
 function AppRouter() {
@@ -40,6 +41,7 @@ function AppRouter() {
         <Route path="/projects" component={ProjectsPage} />
         <Route path="/projects/:projectId/upload" component={ProjectUploadPage} />
         <Route path="/captures" component={CapturesInboxPage} />
+        <Route path="/inbox" component={SignalsInboxPage} />
         <Route path="/moments" component={MomentsRadarPage} />
         <Route path="/briefs" component={SimpleBriefsPage} />
         <Route path="/briefs/:id" component={BriefCanvasPage} />
