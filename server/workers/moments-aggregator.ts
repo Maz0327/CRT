@@ -17,8 +17,8 @@ export function startMomentsAggregator() {
     }
   };
 
-  console.log('[moments-aggregator] Starting with 2-minute intervals');
-  // warm + every 2 minutes
+  console.log('[moments-aggregator] Starting with 5-minute intervals');
+  // Refresh every 5 minutes to reduce system load
   run();
-  setInterval(run, 120000);
+  setInterval(run, 5 * 60 * 1000);
 }

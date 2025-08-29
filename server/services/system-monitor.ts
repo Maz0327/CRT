@@ -43,11 +43,11 @@ class SystemMonitor {
   private startTime = Date.now();
 
   constructor() {
-    // Collect system metrics every 5 minutes (reduced from 1 minute)
-    setInterval(() => this.collectMetrics(), 5 * 60 * 1000);
+    // Collect system metrics every 10 minutes to reduce overhead
+    setInterval(() => this.collectMetrics(), 10 * 60 * 1000);
     
-    // Cleanup old data every 30 minutes (increased frequency)
-    setInterval(() => this.cleanup(), 30 * 60 * 1000);
+    // Cleanup old data every hour
+    setInterval(() => this.cleanup(), 60 * 60 * 1000);
     
     // Initial collection
     this.collectMetrics();
