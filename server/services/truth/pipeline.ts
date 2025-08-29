@@ -4,7 +4,7 @@ import { extractFromUrl, ocrImagePlaceholder } from "./extract";
 import { saveTruthCheck, saveEvidence, updateTriageFields } from "./store";
 import { computeTriage } from "./triage";
 
-const MODEL_STRICT = process.env.TRUTH_LAB_MODEL || "gpt-5-thinking"; // changeable by env
+const MODEL_STRICT = process.env.TRUTH_LAB_MODEL || "gpt-4o-mini"; // changeable by env
 
 export type BundleInput = {
   title?: string;

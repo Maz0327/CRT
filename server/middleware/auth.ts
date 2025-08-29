@@ -17,6 +17,22 @@ declare global {
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
+    // ---- TEST BYPASS (non-prod only) ----
+    const testBypassEnabled =
+      process.env.NODE_ENV !== "production" &&
+      process.env.TEST_BYPASS_AUTH === "1";
+
+    if (testBypassEnabled && req.headers["x-test-bypass"] === "1") {
+      // Minimal test identity; align with your RequestUser type
+      (req as any).user = {
+        id: "00000000-0000-0000-0000-000000000000",
+        email: "test@example.com",
+        role: "tester",
+      };
+      return next();
+    }
+    // ---- END TEST BYPASS ----
+
     // Test mode bypass: if req.user is already set, skip auth verification
     if (req.user) {
       return next();

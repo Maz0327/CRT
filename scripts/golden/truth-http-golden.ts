@@ -20,7 +20,7 @@ type AnalyzeResponse = {
   error?: string;
 };
 
-const PROJECT_ID = process.env.TEST_PROJECT_ID || "test-project";
+const PROJECT_ID = process.env.TEST_PROJECT_ID || "00000000-0000-0000-0000-000000000001";
 const app = createApp({ testMode: true });
 
 /**
@@ -90,6 +90,7 @@ async function main() {
   const res = await request(app)
     .post("/api/truth/analyze-text")
     .set("Content-Type", "application/json")
+    .set("X-Test-Bypass", "1")
     .set("X-Project-ID", PROJECT_ID)
     .send({ 
       text: GOLDEN_TEXT,
