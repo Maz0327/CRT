@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ExternalLink, MoreVertical, Edit, Trash2, Rss, ToggleLeft, ToggleRight, RefreshCw, Clock } from 'lucide-react';
+import { Plus, ExternalLink, MoreVertical, Edit, Trash2, Rss, ToggleLeft, ToggleRight, RefreshCw, Clock, Send, Zap } from 'lucide-react';
 import { GlassCard } from '../components/primitives/GlassCard';
 import { PopoverMenu, PopoverMenuItem } from '../components/primitives/PopoverMenu';
 import { useFeeds, useFeedItems } from '../hooks/useFeeds';
 import { useProjectContext } from '../app/providers';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { FeedData } from '../services/feeds';
+import { sendFeedItemToInbox } from '../services/feeds';
+import { materializeItem } from '../services/captureMaterializer';
 
 const suggestedFeeds = [
   { title: 'Vogue Fashion News', url: 'https://www.vogue.com/rss' },
@@ -21,6 +23,7 @@ export default function FeedsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ feed_url: '', title: '' });
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
+  const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +57,42 @@ export default function FeedsPage() {
     if (currentProjectId) {
       pullFeed({ feedId, projectId: currentProjectId }).catch((error) => {
         console.error('Failed to pull feed:', error);
+      });
+    }
+  };
+
+  const handleSendToInbox = async (itemId: string) => {
+    if (!currentProjectId) return;
+    
+    setProcessingItems(prev => new Set([...prev, itemId]));
+    try {
+      await sendFeedItemToInbox(itemId, currentProjectId);
+      console.log(`Sent feed item ${itemId} to inbox`);
+    } catch (error) {
+      console.error('Failed to send item to inbox:', error);
+    } finally {
+      setProcessingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
+
+  const handleMaterializeItem = async (itemId: string, withTruth = true) => {
+    if (!currentProjectId) return;
+    
+    setProcessingItems(prev => new Set([...prev, itemId]));
+    try {
+      const result = await materializeItem(itemId, { runTruth: withTruth });
+      console.log(`Materialized feed item ${itemId} to capture ${result.captureId}`);
+    } catch (error) {
+      console.error('Failed to materialize item:', error);
+    } finally {
+      setProcessingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
       });
     }
   };
@@ -162,6 +201,9 @@ export default function FeedsPage() {
           <FeedPreviewModal 
             feedId={selectedFeedId}
             onClose={() => setSelectedFeedId(null)}
+            onSendToInbox={handleSendToInbox}
+            onMaterialize={handleMaterializeItem}
+            processingItems={processingItems}
           />
         )}
       </AnimatePresence>
@@ -329,9 +371,12 @@ function FeedCard({ feed, index, onPull, onPreview, isPulling, formatLastPulled 
 interface FeedPreviewModalProps {
   feedId: string;
   onClose: () => void;
+  onSendToInbox: (itemId: string) => Promise<void>;
+  onMaterialize: (itemId: string, withTruth?: boolean) => Promise<void>;
+  processingItems: Set<string>;
 }
 
-function FeedPreviewModal({ feedId, onClose }: FeedPreviewModalProps) {
+function FeedPreviewModal({ feedId, onClose, onSendToInbox, onMaterialize, processingItems }: FeedPreviewModalProps) {
   const { currentProjectId } = useProjectContext();
   const { items, isLoading } = useFeedItems(feedId, currentProjectId, 5);
 
@@ -368,29 +413,62 @@ function FeedPreviewModal({ feedId, onClose }: FeedPreviewModalProps) {
               No items found. Try pulling the feed to fetch latest content.
             </div>
           ) : (
-            items.map((item) => (
-              <div key={item.id} className="p-3 glass rounded-lg">
-                <h4 className="font-medium text-sm mb-2 line-clamp-2">{item.title}</h4>
-                {item.summary && (
-                  <p className="text-xs text-ink/70 line-clamp-3 mb-2">{item.summary}</p>
-                )}
-                <div className="flex items-center gap-2 text-xs text-ink/50">
-                  {item.author && <span>{item.author}</span>}
-                  {item.published_at && (
-                    <span>{new Date(item.published_at).toLocaleDateString()}</span>
+            items.map((item) => {
+              const isProcessing = processingItems.has(item.id);
+              
+              return (
+                <div key={item.id} className="p-3 glass rounded-lg">
+                  <h4 className="font-medium text-sm mb-2 line-clamp-2">{item.title}</h4>
+                  {item.summary && (
+                    <p className="text-xs text-ink/70 line-clamp-3 mb-2">{item.summary}</p>
                   )}
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-ink/80 transition-colors ml-auto"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Read
-                  </a>
+                  <div className="flex items-center justify-between gap-2 text-xs text-ink/50">
+                    <div className="flex items-center gap-2">
+                      {item.author && <span>{item.author}</span>}
+                      {item.published_at && (
+                        <span>{new Date(item.published_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {/* Send to Inbox button */}
+                      <button
+                        onClick={() => onSendToInbox(item.id)}
+                        disabled={isProcessing}
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 rounded transition-colors disabled:opacity-50"
+                        title="Send to Inbox"
+                      >
+                        <Send className={`w-3 h-3 ${isProcessing ? 'animate-pulse' : ''}`} />
+                        <span className="hidden md:inline">Inbox</span>
+                      </button>
+                      
+                      {/* Materialize button */}
+                      <button
+                        onClick={() => onMaterialize(item.id, true)}
+                        disabled={isProcessing}
+                        className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 hover:bg-green-500/30 hover:text-green-300 rounded transition-colors disabled:opacity-50"
+                        title="Create Capture + Truth Analysis"
+                      >
+                        <Zap className={`w-3 h-3 ${isProcessing ? 'animate-pulse' : ''}`} />
+                        <span className="hidden md:inline">Capture</span>
+                      </button>
+                      
+                      {/* Read original link */}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 hover:text-ink/80 transition-colors"
+                        title="Read original"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span className="hidden md:inline">Read</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </motion.div>

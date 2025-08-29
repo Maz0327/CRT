@@ -74,7 +74,7 @@ export function listFeeds(projectId: string) {
     });
   }
   
-  return api.get<{ success: boolean; feeds: FeedData[] }>("/feeds", { projectId });
+  return api.get<{ success: boolean; feeds: FeedData[] }>(`/feeds?projectId=${projectId}`);
 }
 
 // Pull a feed now (fetch new content)
@@ -128,6 +128,20 @@ export function updateFeed(id: string, patch: any) {
     return Promise.resolve({ id, ...patch });
   }
   throw new Error("updateFeed not implemented in new feeds API");
+}
+
+// Send feed item to inbox (Step 48)
+export function sendFeedItemToInbox(feedItemId: string, workspaceId: string) {
+  if (IS_MOCK_MODE) {
+    return Promise.resolve({
+      success: true,
+      ingestionId: "mock-ingestion-" + Date.now(),
+      feedItemId,
+      workspaceId
+    });
+  }
+  
+  return api.post(`/feeds/send-to-inbox`, { feedItemId, workspaceId });
 }
 
 // Delete feed - placeholder for compatibility  
