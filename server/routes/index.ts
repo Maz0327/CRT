@@ -9,6 +9,7 @@ import registerTruthRoutes from "./truth";
 import searchRouter from "./search";
 import capturesBasic from "./captures-basic";
 import registerSignalRoutes from "./signals";
+import risingPulsesRouter from "./rising-pulses";
 
 export function buildApiRouter() {
   const router = Router();
@@ -23,6 +24,9 @@ export function buildApiRouter() {
 
   // Step 44: Mount signals routes
   router.use("/signals", registerSignalRoutes);
+
+  // Step 49: Mount rising pulses routes
+  router.use("/rising-pulses", risingPulsesRouter);
 
   // Lovable UI routes
   setupSettingsRoutes(router as any);
