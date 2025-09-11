@@ -183,7 +183,7 @@ app.use((req, res, next) => {
 
       // Enhanced debug logging
       debugLogger.apiCall(
-        req,
+        req as any,
         res,
         duration,
         res.statusCode >= 400
@@ -386,11 +386,10 @@ app.use((req, res, next) => {
   app.use(notFoundHandler);
   app.use(block10NotFoundHandler);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
+  // ALWAYS serve the app on port 5000 for Replit workflows
+  // Other ports are firewalled. Force port 5000 for proper workflow integration.
+  // This serves both the API and the client.
+  const port = 5000;
   
 mountHealth(app);
 if (process.env.NODE_ENV === "production") { mountProdFrontend(app); }
