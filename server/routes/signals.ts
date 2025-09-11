@@ -1,8 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { createSignal, confirmSignal, needsEditSignal, listSignals } from "../services/signals";
 import type { SignalStatus } from "../types/signals";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
+
+// Apply auth middleware to all routes in this router
+router.use(requireAuth);
 
 // Expect req.user.id to exist (auth middleware). If not, fallback to header for dev.
 function getUserId(req: Request): string {

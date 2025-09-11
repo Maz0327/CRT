@@ -5,8 +5,12 @@ import {
   createProject,
   userHasAccessToProject,
 } from "../lib/db/projects";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
+
+// Apply auth middleware to all routes in this router
+router.use(requireAuth);
 
 // GET /api/projects -> Project[]
 router.get("/projects", async (req, res, next) => {

@@ -9,7 +9,7 @@ const pool = new Pool({
 export type Project = {
   id: string;
   name: string;
-  owner_id: string;
+  user_id: string;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -20,9 +20,9 @@ export type Project = {
 
 export async function listProjectsForUser(userId: string): Promise<Project[]> {
   const q = `
-    select id, name, owner_id, created_at, updated_at
+    select id, name, user_id, created_at, updated_at
     from projects
-    where owner_id = $1
+    where user_id = $1
     order by updated_at desc nulls last, created_at desc
   `;
   const { rows } = await pool.query(q, [userId]);
@@ -33,7 +33,7 @@ export async function userHasAccessToProject(userId: string, projectId: string):
   const q = `
     select 1
     from projects
-    where id = $1 and owner_id = $2
+    where id = $1 and user_id = $2
     limit 1
   `;
   const { rowCount } = await pool.query(q, [projectId, userId]);
@@ -42,9 +42,9 @@ export async function userHasAccessToProject(userId: string, projectId: string):
 
 export async function createProject(userId: string, name: string): Promise<Project> {
   const q = `
-    insert into projects (name, owner_id)
+    insert into projects (name, user_id)
     values ($1, $2)
-    returning id, name, owner_id, created_at, updated_at
+    returning id, name, user_id, created_at, updated_at
   `;
   const { rows } = await pool.query(q, [name, userId]);
   return rows[0] as Project;
@@ -54,7 +54,7 @@ export async function firstOwnedOrRecentProjectId(userId: string): Promise<strin
   const q = `
     select id
     from projects
-    where owner_id = $1
+    where user_id = $1
     order by updated_at desc nulls last, created_at desc
     limit 1
   `;
