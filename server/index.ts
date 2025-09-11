@@ -351,22 +351,32 @@ app.use((req, res, next) => {
   // ... after app + middleware + routers are configured, before notFound/error handlers:
   mountStatusRoutes(app);
 
-  // TEMPORARY: Skip Vite setup due to import.meta.dirname issue
-  // Serve client files directly in both dev and production modes
-  import("fs").then(fs => {
-    const clientPath = path.resolve(process.cwd(), "client");
-    if (fs.existsSync(clientPath)) {
-      // In development, serve files directly from client folder
-      app.use(express.static(clientPath));
-      app.use("/src", express.static(path.join(clientPath, "src")));
-      app.use("*", (_req, res) => {
-        res.sendFile(path.resolve(clientPath, "index.html"));
-      });
-      console.log(`[server] serving client files from ${clientPath}`);
-    } else {
-      console.log(`[server] client directory not found: ${clientPath}`);
-    }
-  });
+  // In development mode, let Vite handle the frontend
+  // In production mode, serve the built frontend
+  if (process.env.NODE_ENV === "production") {
+    import("fs").then(fs => {
+      const clientPath = path.resolve(process.cwd(), "client");
+      if (fs.existsSync(clientPath)) {
+        app.use(express.static(clientPath));
+        app.use("/src", express.static(path.join(clientPath, "src")));
+        app.use("*", (_req, res) => {
+          res.sendFile(path.resolve(clientPath, "index.html"));
+        });
+        console.log(`[server] serving client files from ${clientPath}`);
+      } else {
+        console.log(`[server] client directory not found: ${clientPath}`);
+      }
+    });
+  } else {
+    // In development, redirect to Vite dev server
+    app.get("*", (req, res) => {
+      if (req.path.startsWith("/api")) {
+        return; // Let API routes handle themselves
+      }
+      res.redirect(`http://localhost:5175${req.path}`);
+    });
+    console.log(`[server] development mode: redirecting frontend requests to Vite server at http://localhost:5175`);
+  }
 
   // ... after routes (including status) and before your global error handler:
   app.use(sentryErrorHandler());
@@ -402,12 +412,3 @@ export default app;
 
 export { createApp } from "./app";
 
-// --- DEV: force-remove static client serving (use Vite instead) ---
-if (process.env.NODE_ENV !== "production") {
-  // @ts-ignore
-  const s = (app as any)._router?.stack as any[] | undefined;
-  if (Array.isArray(s)) {
-    (app as any)._router.stack = s.filter((layer: any) => !layer?.handle?.name?.includes("serveStatic"));
-    console.log("[server] dev mode: disabled express.static(client). Use Vite on 5175");
-  }
-}
