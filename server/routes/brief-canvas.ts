@@ -1,6 +1,6 @@
 // Brief Canvas API Routes
 import { Router } from "express";
-import { requireAuth } from "../middleware/supabase-auth";
+import { requireAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { BriefLockService } from "../services/brief-locks";
 import { z } from "zod";

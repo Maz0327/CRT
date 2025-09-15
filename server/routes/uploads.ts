@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, AuthedRequest } from '../middleware/supabase-auth';
+import { requireAuth } from '../middleware/auth';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { recordBriefAsset } from '../storage';
 
@@ -14,8 +14,8 @@ const UploadReq = z.object({
 });
 
 // Use Supabase Storage with signed URL (client uploads directly to storage)
-router.post('/api/uploads/brief-asset', requireAuth, async (req: AuthedRequest, res) => {
-  const user = req.user!;
+router.post('/api/uploads/brief-asset', requireAuth, async (req, res) => {
+  const user = (req as any).user!;
   
   try {
     const { brief_id, kind, filename, contentType } = UploadReq.parse(req.body || {});

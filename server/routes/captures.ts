@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/supabase-auth";
+import { requireAuth } from "../middleware/auth";
 import { z } from "zod";
 import { storage } from "../storage";
 import crypto from "crypto";

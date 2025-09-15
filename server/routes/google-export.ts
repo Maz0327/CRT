@@ -1,5 +1,5 @@
 import { Express } from "express";
-import { requireAuth, AuthedRequest } from "../middleware/supabase-auth";
+import { requireAuth } from "../middleware/auth";
 import { storage } from "../storage";
 import { GoogleSlidesService } from "../services/google/slides";
 import { z } from "zod";
@@ -28,7 +28,7 @@ export function registerGoogleExportRoutes(app: Express) {
   const slidesService = new GoogleSlidesService();
 
   // Export brief to Google Slides
-  app.post("/api/briefs/:id/export/slides", requireAuth, async (req: AuthedRequest, res) => {
+  app.post("/api/briefs/:id/export/slides", requireAuth, async (req, res) => {
     try {
       // Check if Google export is configured
       const envCheck = checkGoogleEnvironment();
@@ -133,7 +133,7 @@ export function registerGoogleExportRoutes(app: Express) {
   });
 
   // Get Google auth URL
-  app.get("/api/auth/google", requireAuth, async (req: AuthedRequest, res) => {
+  app.get("/api/auth/google", requireAuth, async (_req, res) => {
     try {
       const { GoogleOAuthService } = await import("../services/google/oauth");
       const oauthService = new GoogleOAuthService();
@@ -147,7 +147,7 @@ export function registerGoogleExportRoutes(app: Express) {
   });
 
   // Handle Google OAuth callback
-  app.get("/api/auth/google/callback", requireAuth, async (req: AuthedRequest, res) => {
+  app.get("/api/auth/google/callback", requireAuth, async (req, res) => {
     try {
       const { code } = req.query;
       if (!code || typeof code !== 'string') {
