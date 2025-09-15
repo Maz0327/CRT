@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/supabase-auth';
 import { initSSE, sendSSE, keepAlive } from '../lib/sse';
 import { storage } from '../storage';
 

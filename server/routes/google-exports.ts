@@ -7,7 +7,7 @@ import { createGoogleDriveService } from '../services/google-drive-service';
 import { googleVisionService } from '../services/google-vision-service';
 import { googleNLPService } from '../services/google-nlp-service';
 import { googleAuthService } from '../services/google-auth';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/supabase-auth';
 import { storage } from '../storage';
 
 const router = Router();

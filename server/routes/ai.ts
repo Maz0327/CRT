@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/supabase-auth";
 import { z } from "zod";
 import { validateBody, ValidatedRequest } from "../middleware/validate";
 import { AIAnalyzer } from "../services/aiAnalyzer";

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/supabase-auth';
 import { runReadModelPipeline } from '../workers/analysis/pipeline';
 import { storage } from '../storage';
 
