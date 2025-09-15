@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, AuthedRequest } from '../middleware/supabase-auth';
+import { requireAuth } from '../middleware/auth';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { getMediaProvider } from '../services/analysis';
 import { AnalysisResultSchema } from '../services/analysis/schema';
@@ -49,8 +49,8 @@ router.post('/test', async (req, res) => {
   }
 });
 
-router.post('/api/media/analyze/quick', requireAuth, async (req: AuthedRequest, res) => {
-  const user = req.user!;
+router.post('/api/media/analyze/quick', requireAuth, async (req, res) => {
+  const user = (req as any).user!;
   const body = AnalyzeBody.parse(req.body || {});
   const provider = getMediaProvider();
 
@@ -93,8 +93,8 @@ router.post('/api/media/analyze/quick', requireAuth, async (req: AuthedRequest, 
   }
 });
 
-router.post('/api/media/analyze/deep', requireAuth, async (req: AuthedRequest, res) => {
-  const user = req.user!;
+router.post('/api/media/analyze/deep', requireAuth, async (req, res) => {
+  const user = (req as any).user!;
   const body = AnalyzeBody.parse(req.body || {});
 
   const { data, error } = await supabaseAdmin.from('media_analysis_jobs').insert({
@@ -112,8 +112,8 @@ router.post('/api/media/analyze/deep', requireAuth, async (req: AuthedRequest, r
   res.json({ jobId: data.id, status: 'queued' });
 });
 
-router.get('/api/media/jobs/:jobId', requireAuth, async (req: AuthedRequest, res) => {
-  const user = req.user!;
+router.get('/api/media/jobs/:jobId', requireAuth, async (req, res) => {
+  const user = (req as any).user!;
   const jobId = req.params.jobId;
 
   const { data: job, error: e1 } = await supabaseAdmin

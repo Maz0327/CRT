@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { requireAuth, AuthedRequest } from "../middleware/supabase-auth";
+import { requireAuth } from "../middleware/supabase-auth";
 import { z } from "zod";
 import { storage } from "../storage";
 import { insertContentRadarSchema } from "@shared/supabase-schema";
